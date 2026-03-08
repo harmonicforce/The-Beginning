@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Reseller Brain OS",
-    "slug": "reseller-brain-os",
+    "name": "The Beginning",
+    "slug": "the-beginning",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "scheme": "resellerbrain",
+    "scheme": "thebeginning",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -14,20 +14,20 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.resellerbrain.photointake",
+      "bundleIdentifier": "com.russellvault.thebeginning",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Reseller Brain OS uses your camera to photograph inventory items for AI-powered identification and listing creation.",
-        "NSPhotoLibraryUsageDescription": "Reseller Brain OS accesses your photo library to select images of inventory items for AI-powered analysis."
+        "NSCameraUsageDescription": "The Beginning uses your camera to photograph inventory items for AI-powered identification and listing creation.",
+        "NSPhotoLibraryUsageDescription": "The Beginning accesses your photo library to select images of inventory items for AI-powered analysis."
       },
-      "minimumOsVersion": "16.0"
+      "minimumOsVersion": "17.0"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0a0a"
       },
-      "package": "com.resellerbrain.photointake",
+      "package": "com.russellvault.thebeginning",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -44,16 +44,17 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Reseller Brain OS to access your camera to photograph inventory items."
+          "cameraPermission": "Allow The Beginning to access your camera to photograph inventory items."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Reseller Brain OS to access your photos to select inventory images."
+          "photosPermission": "Allow The Beginning to access your photos to select inventory images."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-haptics"
     ],
     "experiments": {
       "typedRoutes": true
