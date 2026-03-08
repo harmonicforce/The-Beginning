@@ -1,12 +1,23 @@
+/**
+ * Claude API client.
+ *
+ * Security: The Anthropic SDK is used in React Native (not browser) context.
+ * The API key is retrieved from SecureStore at call time — never bundled or logged.
+ * dangerouslyAllowBrowser is NOT set. The SDK works correctly in RN's JS environment.
+ *
+ * Image compression: All photos are compressed via lib/compression.ts before
+ * being sent to the API (max 1920px / 2048px for SLAB, JPEG 85%).
+ */
+
 import Anthropic from '@anthropic-ai/sdk';
-import * as FileSystem from 'expo-file-system';
 import { Category, Protocol } from '../types/item';
 import { SYSTEM_PROMPT, buildUserPrompt } from './prompts';
+import { getModelForProtocol } from './models';
+import { compressImageToBase64 } from './compression';
+import { getApiKey } from './storage';
 
-const MODEL = 'claude-sonnet-4-0';
-const MAX_TOKENS_CORE = 4000;
+const MAX_TOKENS_CORE = 4096;
 const MAX_TOKENS_QUICK = 1500;
-const MAX_IMAGE_DIMENSION = 1920;
 
 export type AnalysisProgressStep =
   | 'uploading'
@@ -30,45 +41,39 @@ export class ApiError extends Error {
   }
 }
 
-async function readImageAsBase64(uri: string): Promise<{ data: string; mediaType: string }> {
-  // Determine media type from extension
-  const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const mediaTypeMap: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-  };
-  const mediaType = mediaTypeMap[ext] ?? 'image/jpeg';
-
-  const data = await FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
-  return { data, mediaType };
-}
-
+/**
+ * Core analysis function.
+ * Retrieves the API key from SecureStore, compresses images, calls Claude.
+ */
 export async function analyzeItem(
-  apiKey: string,
   category: Category,
   protocol: Protocol,
   photoUris: string[],
   callbacks?: AnalysisCallbacks
 ): Promise<Record<string, unknown>> {
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  // Retrieve API key from SecureStore at call time — never stored in JS bundle
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    throw new ApiError(
+      'No API key configured. Please add your Anthropic API key in Settings.',
+      false
+    );
+  }
+
+  // React Native is not a browser environment — no dangerouslyAllowBrowser needed
+  const client = new Anthropic({ apiKey });
 
   callbacks?.onProgress?.('uploading');
 
-  // Build image content blocks
+  // Compress all images before encoding
   const imageBlocks: Anthropic.ImageBlockParam[] = [];
   for (const uri of photoUris) {
-    const { data, mediaType } = await readImageAsBase64(uri);
+    const { data, mediaType } = await compressImageToBase64(uri, category);
     imageBlocks.push({
       type: 'image',
       source: {
         type: 'base64',
-        media_type: mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+        media_type: mediaType,
         data,
       },
     });
@@ -77,7 +82,6 @@ export async function analyzeItem(
   callbacks?.onProgress?.('identifying');
 
   const userPromptText = buildUserPrompt(category, protocol, photoUris.length);
-
   const content: Anthropic.ContentBlockParam[] = [
     ...imageBlocks,
     { type: 'text', text: userPromptText },
@@ -88,8 +92,9 @@ export async function analyzeItem(
   }
 
   try {
+    const model = getModelForProtocol(protocol);
     const response = await client.messages.create({
-      model: MODEL,
+      model,
       max_tokens: protocol === 'core' ? MAX_TOKENS_CORE : MAX_TOKENS_QUICK,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content }],
@@ -116,7 +121,11 @@ export async function analyzeItem(
       throw new ApiError('Rate limit reached. Please wait a moment and try again.', true, 429);
     }
     if (err instanceof Anthropic.AuthenticationError) {
-      throw new ApiError('Invalid API key. Please check your Anthropic API key in Settings.', false, 401);
+      throw new ApiError(
+        'Invalid API key. Please check your Anthropic API key in Settings.',
+        false,
+        401
+      );
     }
     if (err instanceof Anthropic.APIStatusError) {
       const retryable = err.status >= 500;
@@ -134,20 +143,45 @@ export async function analyzeItem(
   }
 }
 
+/**
+ * Wrapper with a single automatic retry on retryable errors.
+ */
 export async function analyzeItemWithRetry(
-  apiKey: string,
   category: Category,
   protocol: Protocol,
   photoUris: string[],
   callbacks?: AnalysisCallbacks
 ): Promise<Record<string, unknown>> {
   try {
-    return await analyzeItem(apiKey, category, protocol, photoUris, callbacks);
+    return await analyzeItem(category, protocol, photoUris, callbacks);
   } catch (err) {
     if (err instanceof ApiError && err.retryable) {
-      // Single automatic retry
-      return await analyzeItem(apiKey, category, protocol, photoUris, callbacks);
+      return await analyzeItem(category, protocol, photoUris, callbacks);
     }
     throw err;
+  }
+}
+
+/**
+ * Validate an API key by making a minimal test call.
+ * Returns null on success or an error message string on failure.
+ */
+export async function validateApiKey(key: string): Promise<string | null> {
+  try {
+    const client = new Anthropic({ apiKey: key });
+    await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 10,
+      messages: [{ role: 'user', content: 'Reply with: OK' }],
+    });
+    return null;
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) {
+      return 'Invalid API key. Please check and try again.';
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return 'Key is valid but rate limited. Try again in a moment.';
+    }
+    return 'Could not validate key. Check your connection and try again.';
   }
 }

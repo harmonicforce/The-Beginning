@@ -61,7 +61,7 @@ function StepIndicator({
 }
 
 export default function ProcessingScreen() {
-  const { intake, apiKey, incrementMonthlyCount } = useSessionStore();
+  const { intake, incrementMonthlyCount } = useSessionStore();
   const { addItem } = useInventoryStore();
   const [currentStep, setCurrentStep] = useState<AnalysisProgressStep>('uploading');
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export default function ProcessingScreen() {
   }, []);
 
   useEffect(() => {
-    if (!category || !protocol || !apiKey || photoUris.length === 0) {
+    if (!category || !protocol || photoUris.length === 0) {
       router.replace('/intake/category');
       return;
     }
@@ -90,10 +90,10 @@ export default function ProcessingScreen() {
   }, []);
 
   const runAnalysis = async () => {
-    if (!category || !protocol || !apiKey) return;
+    if (!category || !protocol) return;
 
     try {
-      const result = await analyzeItemWithRetry(apiKey, category, protocol, photoUris, {
+      const result = await analyzeItemWithRetry(category, protocol, photoUris, {
         onProgress: (step) => setCurrentStep(step),
       });
 
