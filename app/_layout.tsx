@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSessionStore } from '../store/session';
 import { useInventoryStore } from '../store/inventory';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 
 export default function RootLayout() {
   const loadSession = useSessionStore((s) => s.loadSession);
@@ -15,7 +16,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <ErrorBoundary showHomeButton={false}>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -35,7 +36,8 @@ export default function RootLayout() {
         <Stack.Screen name="intake/result/[id]" options={{ title: 'Analysis Result' }} />
         <Stack.Screen name="item/[id]" options={{ title: 'Item Detail' }} />
         <Stack.Screen name="account" options={{ title: 'Account & Plan' }} />
+        <Stack.Screen name="scanner" options={{ title: 'Scan Barcode' }} />
       </Stack>
-    </>
+    </ErrorBoundary>
   );
 }
