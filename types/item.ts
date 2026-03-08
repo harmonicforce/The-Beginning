@@ -141,6 +141,15 @@ export interface Listings {
   mercari: PlatformListing;
 }
 
+// ─── Status History ──────────────────────────────────────────────────────────
+
+export interface StatusChange {
+  from: ItemStatus;
+  to: ItemStatus;
+  timestamp: string;
+  note?: string;
+}
+
 // ─── Full Item Record ────────────────────────────────────────────────────────
 
 export interface Item {
@@ -151,6 +160,7 @@ export interface Item {
   identification: Identification;
   confidence: number;
   confidenceNotes?: string;
+  displayName?: string;
   photos: string[];
   research?: Research;
   listings?: Listings;
@@ -162,8 +172,21 @@ export interface Item {
   createdAt: string;
   updatedAt: string;
   listedPlatforms: string[];
+  // Sale tracking
   salePrice?: number;
+  salePlatform?: string;
+  buyerUsername?: string;
+  saleDate?: string;
+  platformFee?: number;
+  shippingCost?: number;
+  trackingNumber?: string;
   netProfit?: number;
+  roi?: number;
+  // Notes and history
+  notes?: string;
+  statusHistory?: StatusChange[];
+  // Schema version for future migration
+  schemaVersion?: number;
 }
 
 // ─── Partial for creation ────────────────────────────────────────────────────
