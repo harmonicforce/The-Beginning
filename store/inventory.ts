@@ -14,6 +14,7 @@ interface InventoryState {
   // Filters
   getItemsByCategory: (category: Category) => Item[];
   getItemsByStatus: (status: ItemStatus) => Item[];
+  clearAll: () => Promise<void>;
 }
 
 export const useInventoryStore = create<InventoryState>((set, get) => ({
@@ -51,4 +52,12 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
   getItemsByStatus: (status: ItemStatus) =>
     get().items.filter((i) => i.status === status),
+
+  clearAll: async () => {
+    const items = get().items;
+    for (const item of items) {
+      await Storage.deleteItem(item.id);
+    }
+    set({ items: [] });
+  },
 }));

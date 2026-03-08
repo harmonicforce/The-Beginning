@@ -22,10 +22,12 @@ export function calculateFeeAmount(salePrice: number, platformId: string): numbe
 export function calculateNetProfit(
   salePrice: number,
   purchasePrice: number,
-  platformId: string,
+  feeOrPlatformId: number | string,
   shippingCost: number = 0
 ): number {
-  const fee = calculateFeeAmount(salePrice, platformId);
+  const fee = typeof feeOrPlatformId === 'number'
+    ? feeOrPlatformId
+    : calculateFeeAmount(salePrice, feeOrPlatformId);
   return Math.round((salePrice - purchasePrice - fee - shippingCost) * 100) / 100;
 }
 

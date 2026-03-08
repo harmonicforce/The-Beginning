@@ -31,7 +31,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
-          headerTitle: 'Reseller Brain OS',
+          headerTitle: 'The Beginning',
         }}
       />
       <Tabs.Screen
@@ -40,6 +40,15 @@ export default function TabsLayout() {
           title: 'Inventory',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="albums" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          title: 'Analytics',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bar-chart" size={size} color={color} />
           ),
         }}
       />
