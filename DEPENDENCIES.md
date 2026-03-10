@@ -3,11 +3,11 @@
 ## Core Framework
 | Package | Version | Purpose |
 |---|---|---|
-| expo | ~55.0.0 | Managed workflow framework |
-| react | 19.0.0 | UI library |
-| react-native | 0.79.2 | Mobile runtime |
-| expo-router | ~5.1.0 | File-based routing |
-| typescript | ~5.8.3 | Type system |
+| expo | ~54.0.0 | Managed workflow framework |
+| react | 19.1.0 | UI library |
+| react-native | 0.81.5 | Mobile runtime |
+| expo-router | ~6.0.0 | File-based routing |
+| typescript | ^5.7.3 | Type system |
 
 ## UI & Styling
 | Package | Version | Purpose |
@@ -37,7 +37,7 @@
 ## Camera & Media
 | Package | Version | Purpose |
 |---|---|---|
-| expo-camera | ~16.1.6 | Camera + barcode scanning (CameraView API) |
+| expo-camera | ~17.0.8 | Camera + barcode scanning (CameraView API) |
 | expo-image-picker | ~16.1.4 | Photo library access |
 | expo-image-manipulator | ~13.1.4 | Image compression before API calls |
 | expo-image | ~2.3.0 | High-performance image component |
@@ -73,7 +73,7 @@
 ## Architecture Notes
 
 ### Why not Expo Go?
-SDK 55 with prebuild + Xcode development builds. This enables native modules (expo-camera, expo-haptics) and better performance.
+SDK 54 with prebuild + Xcode development builds. This enables native modules (expo-camera, expo-haptics) and better performance.
 
 ### Why Zustand over Redux?
 Minimal boilerplate, TypeScript-first, tiny bundle size (~1KB). Perfect for a focused app with 5 stores.
@@ -82,7 +82,7 @@ Minimal boilerplate, TypeScript-first, tiny bundle size (~1KB). Perfect for a fo
 FlashList uses recycling (like UITableView) for 5-10x better performance on lists with 1000+ items.
 
 ### Why expo-camera instead of expo-barcode-scanner?
-expo-barcode-scanner is deprecated in SDK 55. expo-camera's CameraView API includes built-in barcode scanning.
+expo-barcode-scanner is deprecated in SDK 54. expo-camera's CameraView API includes built-in barcode scanning.
 
 ### Why Zod for validation?
 AI responses are unpredictable. Zod validates the JSON structure at runtime before storing, preventing crashes from malformed data.

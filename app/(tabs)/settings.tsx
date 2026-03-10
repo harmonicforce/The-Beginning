@@ -250,7 +250,7 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>SDK</Text>
-          <Text style={styles.infoValue}>Expo 55</Text>
+          <Text style={styles.infoValue}>Expo 54</Text>
         </View>
       </Card>
 
