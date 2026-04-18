@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Council Call</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <div class="brand">AI Council Call</div>
+      <div class="meeting-status">
+        <span id="statusDot" class="status-dot"></span>
+        <span id="meetingStatus">Waiting</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="call-stage">
+        <div class="stage-header">
+          <h1>Council Room</h1>
+          <p class="subtitle">Turn-based or contentious interruption mode</p>
+        </div>
+
+        <div id="participantGrid" class="participant-grid"></div>
+
+        <div class="stage-controls">
+          <button id="startBtn" class="primary">Start Meeting</button>
+          <button id="nextTurnBtn">Next Action</button>
+          <button id="resetBtn">Reset</button>
+        </div>
+      </section>
+
+      <aside class="control-panel">
+        <section class="panel-card">
+          <h2>Council Prompt</h2>
+          <textarea id="promptInput" rows="5" placeholder="Ask the council something...">Should we launch an AI agent for customer support this quarter?</textarea>
+        </section>
+
+        <section class="panel-card">
+          <h2>Meeting Mode</h2>
+          <label>
+            Mode
+            <select id="meetingMode">
+              <option value="turns">Structured Turns</option>
+              <option value="contentious">Contentious (Interruptions)</option>
+            </select>
+          </label>
+          <label>
+            Interruption Intensity (contentious mode)
+            <input id="interruptIntensity" type="range" min="0" max="100" value="55" />
+          </label>
+          <p class="hint">Higher intensity causes more direct rebuttals and rapid back-and-forth.</p>
+        </section>
+
+        <section class="panel-card">
+          <h2>Voice Output</h2>
+          <label>
+            <input id="voiceEnabled" type="checkbox" checked />
+            Enable spoken responses (Web Speech API)
+          </label>
+          <label>
+            Voice Speed
+            <input id="voiceRate" type="range" min="60" max="140" value="100" />
+          </label>
+          <p class="hint">Each persona can get a distinct voice profile; interruptions can overlap for heated debates.</p>
+        </section>
+
+        <section class="panel-card">
+          <h2>API Configuration</h2>
+          <label>OpenAI Key <input id="openaiKey" type="password" placeholder="sk-..." /></label>
+          <label>Anthropic Key <input id="anthropicKey" type="password" placeholder="sk-ant-..." /></label>
+          <label>Gemini Key <input id="geminiKey" type="password" placeholder="AIza..." /></label>
+          <p class="hint">Missing keys automatically use local simulation.</p>
+        </section>
+
+        <section class="panel-card">
+          <h2>Add Personality</h2>
+          <label>Name <input id="personaName" type="text" placeholder="Strategist" /></label>
+          <label>Persona System Prompt <textarea id="personaPrompt" rows="3" placeholder="You challenge assumptions and advocate hard trade-offs..."></textarea></label>
+          <label>
+            Voice Profile
+            <select id="personaVoiceProfile">
+              <option value="assertive">Assertive</option>
+              <option value="calm">Calm</option>
+              <option value="analytical">Analytical</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </label>
+          <label>
+            Provider
+            <select id="personaProvider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
+              <option value="local">Local Simulator</option>
+            </select>
+          </label>
+          <button id="addPersonaBtn">Add to Council</button>
+        </section>
+
+        <section class="panel-card">
+          <h2>Transcript</h2>
+          <div id="transcript" class="transcript"></div>
+        </section>
+      </aside>
+    </main>
+
+    <template id="participantTemplate">
+      <article class="participant-card">
+        <div class="participant-top">
+          <div class="avatar"></div>
+          <div>
+            <h3 class="name"></h3>
+            <p class="provider"></p>
+          </div>
+        </div>
+        <p class="persona"></p>
+        <div class="bubble"></div>
+      </article>
+    </template>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
