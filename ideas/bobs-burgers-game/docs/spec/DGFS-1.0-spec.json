@@ -1,0 +1,333 @@
+{
+  "meta": {
+    "spec_version": "DGFS-1.0",
+    "created_at": "2026-02-17",
+    "author": "Kyle + Jeff",
+    "working_title": "TBD - Bob's Burgers Game",
+    "one_sentence_hook": "",
+    "platform": "digital",
+    "session_length_target_minutes": "variable (2-60+)",
+    "player_count": "singleplayer_core_with_optional_mp",
+    "camera_control": "side-scrolling 2D",
+    "real_time_vs_turn_based": "real-time",
+    "input": "mixed (touch + mouse/keyboard)"
+  },
+  "intent": {
+    "player_fantasy": "",
+    "tone_keywords": [],
+    "must_not_feel": [],
+    "target_emotions": [],
+    "skill_expression": "reading character tells, collectible optimization, split-party Adventure Mode management, chaos deployment timing",
+    "mastery_curve": ""
+  },
+  "system_spine": {
+    "primary_optimization_variable": "Belcher Rating (composite)",
+    "secondary_metrics": [
+      "burger quality / creativity",
+      "family morale",
+      "restaurant reputation",
+      "regular relationship scores (Teddy, Mort, Mike, etc.)"
+    ],
+    "compounding_mechanisms": [
+      "burger quality → satisfaction → reputation → regular visits → passive buffs → Belcher Rating → ingredient/equipment unlocks → burger quality ceiling rises",
+      "family morale decay → service quality drops → customer dissatisfaction → regular absence → passive buff loss → revenue decline → ingredient degradation → Belcher Rating sink",
+      "chaos layer — Tina/Gene/Louise mood states affect operations; manageable by default, deployable as high-risk gambits",
+      "Burger of the Day — daily creativity modifier sets performance ceiling for the session",
+      "Mr. Fischoeder rent pressure — persistent financial floor stressor"
+    ],
+    "irreversible_actions": [
+      "regular relationship burned — very difficult recovery path (dedicated quest chain + grand gesture cost)",
+      "family schism event — member checks out, debuffs until repaired",
+      "recipe lost — specific Burger of the Day combinations unrecoverable without recipe book system",
+      "Fischoeder escalation — missed rent ratchets terms permanently upward",
+      "neighborhood event resolution — player choices permanently reshape neighborhood state"
+    ],
+    "collapse_vectors": [
+      "family morale collapse",
+      "regular relationship decay",
+      "rent default / Fischoeder pressure spike"
+    ],
+    "win_condition": "none - infinite progression",
+    "loss_condition": "soft fail — declining Belcher Rating compounds difficulty, no termination",
+    "collapse_behavior": "degraded state compounds difficulty across all variables simultaneously",
+    "collapse_recovery": "baseline grind + crisis mode unique mechanics + community rally accelerant (gated by active regular relationships)"
+  },
+  "core_loops": {
+    "loop_30s": "burger crafting (primary) + chaos intercept (disruptor) + ingredient management (micro-scarcity) + Bob internal monologue capture (recipe system feed)",
+    "loop_5m": "simultaneous layered objectives — survive customer rush wave + progress regular quest + hit Burger of the Day target + steer active chaos event toward outcome",
+    "loop_60m": "one rush completed + partial regular quest progress + potential neighborhood event trigger + Fischoeder appearance (pressure/opportunity punctuation)",
+    "decision_points": [
+      "deploy vs. manage a kid — gambit or stability",
+      "accept Fischoeder's terms vs. resist — short-term relief vs. long-term cost",
+      "Burger of the Day creativity vs. safety — high ceiling/risk vs. stable modifier",
+      "intervene in neighborhood event vs. let it play out — control vs. emergent outcome",
+      "call family meeting — morale/focus restoration at cost of service momentum, diminishing returns if overused"
+    ]
+  },
+  "adventure_mode": {
+    "exists": true,
+    "trigger": "days off — player-called or scheduled",
+    "function": "relationship building + resource gathering + neighborhood exploration",
+    "party_model": "split party — assign family members to parallel activities",
+    "visual": "side-scrolling 2D, consistent engine, different locations",
+    "feeds_back_into": "restaurant performance, quest progression, event intel, ingredient supply"
+  },
+  "resources": {
+    "list": [
+      "money",
+      "ingredients (tiered by rarity — common/rare/legendary)",
+      "family morale",
+      "regular relationship scores",
+      "recipe knowledge",
+      "Belcher Rating",
+      "adventure mode action time (per family member per day off)",
+      "event intel",
+      "Borobu cards (Louise — variable function per card)",
+      "Chunky Blast-Offs (Gene — variable function per item, Ken activation currency)",
+      "Equestrenauts (Tina — variable function per figurine)"
+    ],
+    "flows_text": "money↔ingredients standard flow; collectibles tradeable with NPCs; Gene spends Blast-Offs to activate Ken (hidden buff source); recipe selling triggers Bob morale cost; relationship score spendable for short-term gain at long-term cost; collectibles enter via Adventure Mode exploration + customer drops + vendor purchase + quest rewards, tiered by rarity",
+    "scarcity_model": "ingredients tiered by rarity — common always available, rare raises Burger of the Day quality ceiling, legendary gates specific recipes entirely",
+    "liquidity_layer": {
+      "exists": true,
+      "convertibility_rules": "money↔ingredients, collectibles tradeable with NPCs, Gene spends Blast-Offs to activate Ken, recipe selling triggers Bob morale cost, relationship score spendable for short-term gain at long-term cost",
+      "leverage_exists": true,
+      "leverage_rules": "Ken buffs unacknowledged by other family systems — wildcard layer"
+    }
+  },
+  "information_model": {
+    "hidden_info": [
+      "exact regular relationship decay thresholds",
+      "Fischoeder's current scheme/intentions",
+      "incoming neighborhood event specifics",
+      "Ken's actual buff values",
+      "health inspection timing"
+    ],
+    "partial_info": [
+      "regular mood indicators — directional not exact",
+      "ingredient supply levels — visible not spoilage timing",
+      "kid chaos state — visible mood, not active scheme",
+      "neighborhood event pressure — something building, specifics hidden",
+      "Linda escalation tells — singing/distraction visible, disruption severity and timing unknown"
+    ],
+    "inferable_info": [
+      "health inspection timing — patterns emerge across runs",
+      "Fischoeder scheme — neighborhood clues precede appearance",
+      "regular quest availability — behavioral tells before approach",
+      "Ken buff values — inferred through Gene performance patterns",
+      "Tina tells — daydream/freeze escalation pattern",
+      "Louise tells — suspiciously quiet = active scheme",
+      "Linda full behavioral pattern — beyond singing into complete distraction arc",
+      "Teddy freakout buildup — interceptable if player reads tension correctly",
+      "Jimmy Pesto interruption — neighborhood activity visible before arrival"
+    ],
+    "mystery_mechanics": {
+      "exists": true,
+      "how_players_learn": "progressive tell recognition, pattern matching across runs, some mechanics permanently ambiguous",
+      "permanent_mysteries": [
+        "Ken's true nature — intentionally never resolved",
+        "Fischoeder's full agenda — locked until system expansion"
+      ]
+    },
+    "misinformation": {
+      "possible": true,
+      "how": "Louise can feed player bad intel as part of active scheme; Fischoeder offers obscure real intentions — deception tied to specific characters"
+    }
+  },
+  "pressure_engine": {
+    "stressors": [
+      "real-time customer rush waves",
+      "simultaneous layered objectives",
+      "ingredient scarcity",
+      "chaos layer disruptions",
+      "Fischoeder rent clock",
+      "health inspection hidden timer",
+      "regular relationship decay",
+      "Linda distraction escalation",
+      "Bob's yips"
+    ],
+    "yips_mechanic": {
+      "exists": true,
+      "trigger": "stress-triggered with random variance — Fischoeder presence, low family morale, health inspection proximity raise probability",
+      "effect": "Bob's burger quality score temporarily degraded, spiral risk activated",
+      "recovery": "accumulative encouragement threshold — weighted sum of encouraging events from any present source",
+      "encouragement_weights": {
+        "Linda direct encouragement": "high",
+        "family member accidental encouragement": "medium-high",
+        "Teddy pep talk": "medium",
+        "regular compliment": "medium",
+        "customer compliment": "low-medium",
+        "successful burger streak": "low per burger, stackable"
+      }
+    },
+    "black_swan_events": {
+      "exists": true,
+      "event_pool": [
+        "sinkhole / infrastructure collapse (movie-scale)",
+        "art crawl",
+        "health inspection",
+        "Jimmy Pesto escalation",
+        "Fischoeder scheme",
+        "neighborhood event TBD"
+      ],
+      "trigger_model": "hybrid — random low-probability events, pressure-buildup triggers, and telegraphed incoming events with unknown specifics"
+    },
+    "collapse_behavior": "degraded state compounds difficulty across all variables simultaneously",
+    "collapse_recovery": "baseline grind + crisis mode unique mechanics + community rally accelerant (gated by active regular relationships)"
+  },
+  "agents_ai": {
+    "agents_exist": null,
+    "agent_types": [],
+    "difficulty_model": ""
+  },
+  "emergence_balance": {
+    "dominant_strategy_risks": [
+      "restaurant-only grind ignoring Adventure Mode — naturally punished by ingredient/relationship decay",
+      "Louise gambit over-deployment — needs diminishing returns mechanic",
+      "Blast-Off hoarding — needs Gene restlessness mechanic to discourage"
+    ],
+    "anti_runaway_leader_mechanics": [
+      "high Belcher Rating scales up incoming pressure — harder inspections, bigger Fischoeder schemes, more Pesto interference",
+      "legendary ingredients have spoilage timer — prevents stockpiling",
+      "regular relationships decay passively — no coasting on accumulated goodwill"
+    ],
+    "feedback_loops": {
+      "positive": [
+        "burger quality → satisfaction → reputation → regular visits → passive buffs → Belcher Rating → unlocks → burger quality ceiling rises"
+      ],
+      "negative": [
+        "morale decay → service drops → dissatisfaction → regular absence → buff loss → revenue decline → ingredient degradation → Belcher Rating sink"
+      ],
+      "mixed": [
+        "chaos deployment — high risk/reward, outcome dependent on timing and kid state",
+        "recipe selling — short-term revenue, long-term Bob morale cost",
+        "family meeting — morale restoration with diminishing returns",
+        "high Rating → scaled pressure — success is never safe"
+      ]
+    },
+    "tipping_points": [
+      "Fischoeder escalation tier 3 — rent becomes existential",
+      "two regulars burned simultaneously — community rally collapses",
+      "Louise + Linda simultaneous chaos — service unmanageable without family meeting"
+    ],
+    "exploit_countermeasures": [
+      "Ken wildcard buffs unverifiable — prevents perfect optimization",
+      "diminishing returns on family meeting",
+      "misinformation layer via Louise and Fischoeder",
+      "Gene restlessness mechanic — discourages Blast-Off hoarding",
+      "scaled pressure at high Rating — no safe plateau"
+    ]
+  },
+  "content_replay": {
+    "variety_source": "Burger of the Day combinatorial system + rotating regular quest pool + permanent neighborhood state changes + procedural chaos scheme combinations + asymmetric collectible builds",
+    "persistence": {
+      "exists": true,
+      "what_persists": [
+        "recipe book — discovered recipes permanent unless sold",
+        "regular relationship scores — burned relationships carry forward",
+        "collectible inventory",
+        "Fischoeder escalation tier — rent ratchet never resets",
+        "neighborhood state — resolved events permanently alter world"
+      ],
+      "why_it_matters": "every session builds or damages a world state that never fully resets — decisions have permanent weight"
+    },
+    "meta_progression": {
+      "exists": true,
+      "unlocks": [
+        "new equipment and ingredients at Belcher Rating thresholds",
+        "permanent passive buffs from completed regular quest arcs",
+        "character-specific gambits from collectible set completion",
+        "Adventure Mode locations expand with Rating",
+        "Fischoeder agenda chapters at escalation thresholds"
+      ],
+      "rule_mutators": [
+        "completed neighborhood events permanently alter available customer pool",
+        "burned regulars remove their passive buff from the game permanently until recovered",
+        "recipe book size scales — more recipes discovered, more Burger of the Day options available daily"
+      ]
+    }
+  },
+  "prototype": {
+    "mvp_scope": [
+      "single location — restaurant only",
+      "Bob only as playable character",
+      "one rush wave per session with performance grade",
+      "burger crafting — 3 ingredient tiers, basic quality scoring",
+      "one regular (Teddy) — relationship meter, one quest type, passive buff when present",
+      "basic chaos layer — Louise only, one gambit type",
+      "Fischoeder rent clock — appears at session end, single escalation tier",
+      "Burger of the Day — creativity vs. safety choice at session start",
+      "Belcher Rating as visible composite score",
+      "family morale as single tracked variable",
+      "Bob's yips — stress-triggered, accumulative encouragement threshold recovery"
+    ],
+    "explicitly_out_of_scope": [
+      "Adventure Mode / split party",
+      "Gene and Tina chaos systems",
+      "full collectible economy",
+      "neighborhood events",
+      "Ken mechanic",
+      "misinformation layer",
+      "health inspection",
+      "multiple regulars",
+      "meta-progression unlocks",
+      "Linda distraction system",
+      "recipe book persistence"
+    ],
+    "success_metrics": [
+      "player makes at least 3 meaningful decisions per rush wave",
+      "Teddy presence creates noticeable mechanical difference",
+      "Louise chaos event creates genuine tension at least once per session",
+      "Fischoeder appearance feels like earned pressure not random punishment",
+      "Burger of the Day choice feels consequential by end of rush"
+    ],
+    "telemetry": {
+      "log_events": [
+        "burger crafted — ingredients used, quality score, time taken",
+        "chaos intercept — intervened or ignored, outcome",
+        "Louise gambit triggered — player response, result",
+        "Fischoeder appearance — terms accepted or resisted",
+        "family meeting called — morale state before/after",
+        "Burger of the Day — creativity vs safety choice made"
+      ],
+      "log_state_vars": [
+        "Belcher Rating at session start/end",
+        "family morale at session start/end",
+        "Teddy relationship score at session start/end",
+        "revenue generated per rush",
+        "ingredient levels at session end",
+        "Fischoeder escalation tier"
+      ],
+      "red_flags": [
+        "player never calls family meeting — morale system not landing",
+        "Louise gambit always ignored — chaos layer not compelling",
+        "Burger of the Day always safety choice — creativity risk not worth it",
+        "Fischoeder always accepted — resistance option not viable",
+        "session length under 3 minutes consistently — loop not engaging"
+      ]
+    }
+  },
+  "design_pillars": {
+    "pillars": [
+      "Chaos is the point — pressure, disruption, and imperfection are features not bugs",
+      "Family first, restaurant second — relationships always matter more than the score",
+      "Every burger tells a story — creativity, risk, and Bob's identity embedded in every crafting decision"
+    ],
+    "do_list": [
+      "let chaos compound before resolving",
+      "reward tell-reading over mechanic memorization",
+      "make every Burger of the Day feel like a creative act with Bob's voice",
+      "let family moments land emotionally even when mechanically inconvenient",
+      "telegraph pressure before it arrives",
+      "make Teddy's presence genuinely matter every session"
+    ],
+    "dont_list": [
+      "let the player feel fully optimized",
+      "resolve the yips too easily",
+      "make Louise's gambits feel like interruptions",
+      "let Fischoeder feel random",
+      "sacrifice character authenticity for mechanical convenience",
+      "make Belcher Rating the only thing the player cares about"
+    ]
+  }
+}
