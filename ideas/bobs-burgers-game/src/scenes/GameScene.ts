@@ -589,8 +589,8 @@ export class GameScene extends Phaser.Scene {
     const inv = this.inventory;
     g.add(this.add.text(1060, 8, `RARE:${inv.RARE}  LEG:${inv.LEGENDARY}`, { fontFamily: 'monospace', fontSize: '12px', color: '#ccaa66' }).setDepth(11));
 
-    // Hotkey reminder
-    g.add(this.add.text(1060, 28, '[SPACE]=craft  [M]=meeting  [T]=telemetry', { fontFamily: 'monospace', fontSize: '10px', color: '#555555' }).setDepth(11));
+    // Control hint (keyboard fallback; primary input is on-screen buttons)
+    g.add(this.add.text(1060, 28, 'Tap buttons or heat bar  [T]=telemetry', { fontFamily: 'monospace', fontSize: '10px', color: '#555555' }).setDepth(11));
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -622,18 +622,18 @@ export class GameScene extends Phaser.Scene {
       const totalSides = this.activeOrder.sideTimers.length;
       const hzDone = this.heatZoneBar.state === 'released' || this.heatZoneBar.state === 'missed';
       if (!hzDone) {
-        g.add(this.add.text(10, orderY + 76, 'Press SPACE to release heat zone!', { fontFamily: 'monospace', fontSize: '11px', color: '#ffdd55' }).setDepth(5));
+        g.add(this.add.text(10, orderY + 76, 'TAP heat bar → or button below to release!', { fontFamily: 'monospace', fontSize: '11px', color: '#ffdd55' }).setDepth(5));
       } else if (totalSides > sidesReady) {
-        g.add(this.add.text(10, orderY + 76, `Sides: ${sidesReady}/${totalSides} done`, { fontFamily: 'monospace', fontSize: '11px', color: '#aaaaff' }).setDepth(5));
+        g.add(this.add.text(10, orderY + 76, `Sides: ${sidesReady}/${totalSides} done — tap each to pull`, { fontFamily: 'monospace', fontSize: '11px', color: '#aaaaff' }).setDepth(5));
       } else {
-        g.add(this.add.text(10, orderY + 76, 'Press SPACE to complete & deliver!', { fontFamily: 'monospace', fontSize: '11px', color: '#44ff88' }).setDepth(5));
+        g.add(this.add.text(10, orderY + 76, 'TAP button below to complete & deliver!', { fontFamily: 'monospace', fontSize: '11px', color: '#44ff88' }).setDepth(5));
       }
     } else if (this.pendingOrders.length > 0) {
       const next = this.pendingOrders[0];
       g.add(this.add.text(10, orderY + 5, `NEXT ORDER #${next.id}`, { fontFamily: 'monospace', fontSize: '13px', color: '#aaaaff' }).setDepth(5));
       const itemStr = next.items.map(i => i.type.replace(/_/g, ' ')).join(', ');
       g.add(this.add.text(10, orderY + 22, itemStr, { fontFamily: 'monospace', fontSize: '12px', color: '#888888', wordWrap: { width: KITCHEN_W - 130 } }).setDepth(5));
-      g.add(this.add.text(10, orderY + 52, 'Press SPACE to start crafting!', { fontFamily: 'monospace', fontSize: '12px', color: '#ffdd44' }).setDepth(5));
+      g.add(this.add.text(10, orderY + 52, 'TAP button below to start crafting!', { fontFamily: 'monospace', fontSize: '12px', color: '#ffdd44' }).setDepth(5));
       if (this.pendingOrders.length > 1) {
         g.add(this.add.text(10, orderY + 68, `+${this.pendingOrders.length - 1} more orders waiting`, { fontFamily: 'monospace', fontSize: '11px', color: '#888888' }).setDepth(5));
       }
@@ -654,6 +654,23 @@ export class GameScene extends Phaser.Scene {
     // ─ Side timers ─
     this.drawSideTimers(g);
 
+    // ─ Main Action Button (large touch target) ─
+    const actionInfo = this.getKitchenAction();
+    if (actionInfo) {
+      const abtnW = KITCHEN_W - 120;
+      const abtnH = 56;
+      const abtnX = 10;
+      const abtnY = KITCHEN.buttonY;
+      const abtn = this.add.rectangle(abtnX, abtnY, abtnW, abtnH, actionInfo.bg, 0.95)
+        .setOrigin(0, 0).setDepth(7).setStrokeStyle(3, actionInfo.border);
+      abtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.onSpaceBar());
+      const abtnTxt = this.add.text(abtnX + abtnW / 2, abtnY + abtnH / 2, actionInfo.label, {
+        fontFamily: 'monospace', fontSize: '17px', color: actionInfo.color, fontStyle: 'bold',
+      }).setOrigin(0.5).setDepth(8);
+      abtnTxt.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.onSpaceBar());
+      g.add(abtn); g.add(abtnTxt);
+    }
+
     // ─ Bob status ─
     const bobY = y0 + 500;
     const bobStatus = this.yips.isActive ? '⚡ YIPS ACTIVE' : 'Normal';
@@ -667,14 +684,32 @@ export class GameScene extends Phaser.Scene {
 
     // ─ Family meeting button ─
     const mtgY = y0 + 600;
-    const mtgBtn = this.add.rectangle(10, mtgY, 180, 36, 0x224466, 0.9).setOrigin(0, 0).setDepth(5);
-    const mtgTxt = this.add.text(100, mtgY + 18, '[M] Family Meeting', { fontFamily: 'monospace', fontSize: '12px', color: '#aaddff' }).setOrigin(0.5).setDepth(6);
+    const mtgBtn = this.add.rectangle(10, mtgY, 180, 52, 0x224466, 0.9).setOrigin(0, 0).setDepth(5);
+    const mtgTxt = this.add.text(100, mtgY + 26, 'Family Meeting', { fontFamily: 'monospace', fontSize: '13px', color: '#aaddff' }).setOrigin(0.5).setDepth(6);
     g.add(mtgBtn); g.add(mtgTxt);
     mtgBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.callFamilyMeeting());
     mtgTxt.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.callFamilyMeeting());
 
     // Morale decay info
     g.add(this.add.text(200, mtgY + 8, `Meeting ${this.morale.meetingCount + 1}: +${(0.25 * Math.pow(0.6, this.morale.meetingCount) * 100).toFixed(0)}%`, { fontFamily: 'monospace', fontSize: '11px', color: '#557799' }).setDepth(5));
+  }
+
+  private getKitchenAction(): { label: string; bg: number; border: number; color: string } | null {
+    if (this.currentModal !== null) return null;
+    if (this.heatZoneBar.state === 'rising') {
+      return { label: 'TAP TO RELEASE!', bg: 0x332200, border: 0xffee00, color: '#ffee00' };
+    }
+    if (this.activeOrder === null && this.pendingOrders.length > 0) {
+      const n = this.pendingOrders.length;
+      return { label: `START CRAFTING  (${n} order${n > 1 ? 's' : ''} waiting)`, bg: 0x001133, border: 0x4488ff, color: '#88bbff' };
+    }
+    if (this.activeOrder !== null && this.heatZoneBar.state === 'released') {
+      const allDone = this.activeOrder.sideTimers.every(st => st.state === 'passed' || st.state === 'failed');
+      if (allDone) {
+        return { label: 'COMPLETE ORDER  ✓', bg: 0x003311, border: 0x44ff88, color: '#44ff88' };
+      }
+    }
+    return null;
   }
 
   private drawTierButton(g: Phaser.GameObjects.Group, x: number, y: number, tier: IngredientTier, label: string, color: number): void {
@@ -734,11 +769,20 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Border
-    g.add(this.add.rectangle(hx, hy, bw, bh).setOrigin(0, 0).setStrokeStyle(1, 0x666666).setDepth(7));
+    // Border — highlight yellow when tap-ready
+    const barBorderColor = this.heatZoneBar.state === 'rising' ? 0xffee00 : 0x666666;
+    g.add(this.add.rectangle(hx, hy, bw, bh).setOrigin(0, 0).setStrokeStyle(2, barBorderColor).setDepth(7));
+
+    // Full-bar tap target when rising (for iPad / touch)
+    if (this.heatZoneBar.state === 'rising') {
+      const hitArea = this.add.rectangle(hx - 10, hy, bw + 20, bh, 0x000000, 0)
+        .setOrigin(0, 0).setInteractive({ useHandCursor: true }).setDepth(9);
+      hitArea.on('pointerdown', () => this.releaseHeatZone());
+      g.add(hitArea);
+    }
 
     // State text under bar
-    const stateStr = this.heatZoneBar.state === 'rising' ? 'PRESS SPACE!'
+    const stateStr = this.heatZoneBar.state === 'rising' ? 'TAP TO RELEASE!'
       : this.heatZoneBar.state === 'idle' ? 'Ready'
       : this.heatZoneBar.state === 'missed' ? 'MISSED!' : 'Done';
     const stateColor = this.heatZoneBar.state === 'rising' ? '#ffff00'
