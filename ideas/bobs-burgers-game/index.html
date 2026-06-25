@@ -2,14 +2,53 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Bob's Burgers Game</title>
     <style>
-      html, body { margin: 0; padding: 0; background: #1a1a1a; overflow: hidden; }
-      #game { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+      /* height: 100% chain avoids the iOS Safari 100vh bug where 100vh includes
+         the browser chrome and causes the canvas to be vertically misaligned. */
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #0d0800;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      /* Rotate prompt: visible only in portrait, hides the canvas */
+      #rotate-prompt {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: #0d0800;
+        color: #ffcc33;
+        font-family: monospace;
+        text-align: center;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+        z-index: 9999;
+      }
+      @media (orientation: portrait) {
+        #rotate-prompt { display: flex; }
+        #game { display: none; }
+      }
     </style>
   </head>
   <body>
+    <div id="rotate-prompt">
+      <div style="font-size: 56px; line-height: 1;">↻</div>
+      <div style="font-size: 22px;">Rotate your device</div>
+      <div style="font-size: 13px; color: #886633; margin-top: 4px;">Bob's Burgers plays in landscape mode</div>
+    </div>
     <div id="game"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
