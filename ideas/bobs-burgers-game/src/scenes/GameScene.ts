@@ -119,6 +119,10 @@ export class GameScene extends Phaser.Scene {
   private modalGroup!: Phaser.GameObjects.Group;
   private notifGroup!: Phaser.GameObjects.Group;
 
+  // Persistent touch UI (NOT in groups — survives group.clear() so input always fires)
+  private actionBtn!: Phaser.GameObjects.Rectangle;
+  private actionBtnText!: Phaser.GameObjects.Text;
+
   constructor() {
     super('GameScene');
   }
@@ -180,6 +184,52 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-SPACE', () => this.onSpaceBar());
     this.input.keyboard?.on('keydown-T', () => Telemetry.dumpToConsole());
     this.input.keyboard?.on('keydown-M', () => this.callFamilyMeeting());
+
+    // ── Persistent main action button ──
+    // Lives outside kitchenGroup so it is NEVER destroyed by group.clear().
+    // iOS/Android Phaser touch events are unreliable on objects that are
+    // destroyed and recreated every frame; a persistent object fixes that.
+    const abtnX = 10;
+    const abtnW = KITCHEN_W - 120;
+    const abtnH = 56;
+    this.actionBtn = this.add.rectangle(abtnX, KITCHEN.buttonY, abtnW, abtnH, 0x0d0d0d, 0.8)
+      .setOrigin(0, 0).setDepth(15);
+    this.actionBtnText = this.add.text(
+      abtnX + abtnW / 2, KITCHEN.buttonY + abtnH / 2,
+      'Waiting for customers...',
+      { fontFamily: 'monospace', fontSize: '17px', color: '#444444', fontStyle: 'bold' },
+    ).setOrigin(0.5).setDepth(16);
+
+    // ── Global scene-level pointer handler (belt-and-suspenders for iOS) ──
+    // Covers critical tap targets by coordinate so they work even if
+    // Phaser's per-object input pipeline misfires on iOS Chrome/Safari.
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      const px = pointer.x;
+      const py = pointer.y;
+
+      // Main action button
+      if (px >= abtnX && px <= abtnX + abtnW && py >= KITCHEN.buttonY && py <= KITCHEN.buttonY + abtnH) {
+        this.onSpaceBar();
+        return;
+      }
+
+      // Heat zone bar (wider hit pad for fat fingers)
+      const hx = KITCHEN.heatZoneX - 10;
+      const hy = KITCHEN.heatZoneY;
+      if (this.heatZoneBar.state === 'rising'
+          && px >= hx && px <= hx + KITCHEN.heatZoneW + 20
+          && py >= hy && py <= hy + KITCHEN.heatZoneH) {
+        this.releaseHeatZone();
+        return;
+      }
+
+      // Family meeting button
+      const mtgY = HUD_H + 600;
+      if (px >= 10 && px <= 190 && py >= mtgY && py <= mtgY + 52) {
+        this.callFamilyMeeting();
+        return;
+      }
+    });
 
     Telemetry.snapshotState({
       belcher_rating: 0,
@@ -293,6 +343,9 @@ export class GameScene extends Phaser.Scene {
     // Sync rating trackers
     this.belcherRating.setEndMorale(this.morale.value);
     this.belcherRating.setTeddyRelationship(this.teddy.relationshipScore);
+
+    // Update persistent touch button
+    this.updateActionBtn();
 
     // Redraw everything
     this.clearGroups();
@@ -654,23 +707,6 @@ export class GameScene extends Phaser.Scene {
     // ─ Side timers ─
     this.drawSideTimers(g);
 
-    // ─ Main Action Button (large touch target) ─
-    const actionInfo = this.getKitchenAction();
-    if (actionInfo) {
-      const abtnW = KITCHEN_W - 120;
-      const abtnH = 56;
-      const abtnX = 10;
-      const abtnY = KITCHEN.buttonY;
-      const abtn = this.add.rectangle(abtnX, abtnY, abtnW, abtnH, actionInfo.bg, 0.95)
-        .setOrigin(0, 0).setDepth(7).setStrokeStyle(3, actionInfo.border);
-      abtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.onSpaceBar());
-      const abtnTxt = this.add.text(abtnX + abtnW / 2, abtnY + abtnH / 2, actionInfo.label, {
-        fontFamily: 'monospace', fontSize: '17px', color: actionInfo.color, fontStyle: 'bold',
-      }).setOrigin(0.5).setDepth(8);
-      abtnTxt.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.onSpaceBar());
-      g.add(abtn); g.add(abtnTxt);
-    }
-
     // ─ Bob status ─
     const bobY = y0 + 500;
     const bobStatus = this.yips.isActive ? '⚡ YIPS ACTIVE' : 'Normal';
@@ -694,22 +730,36 @@ export class GameScene extends Phaser.Scene {
     g.add(this.add.text(200, mtgY + 8, `Meeting ${this.morale.meetingCount + 1}: +${(0.25 * Math.pow(0.6, this.morale.meetingCount) * 100).toFixed(0)}%`, { fontFamily: 'monospace', fontSize: '11px', color: '#557799' }).setDepth(5));
   }
 
-  private getKitchenAction(): { label: string; bg: number; border: number; color: string } | null {
-    if (this.currentModal !== null) return null;
+  private getKitchenAction(): { label: string; bg: number; border: number; color: string; enabled: boolean } {
+    if (this.currentModal !== null) {
+      return { label: 'Make your decision above...', bg: 0x111111, border: 0x333333, color: '#555555', enabled: false };
+    }
     if (this.heatZoneBar.state === 'rising') {
-      return { label: 'TAP TO RELEASE!', bg: 0x332200, border: 0xffee00, color: '#ffee00' };
+      return { label: '⬇  TAP TO RELEASE!  ⬇', bg: 0x332200, border: 0xffee00, color: '#ffee00', enabled: true };
     }
     if (this.activeOrder === null && this.pendingOrders.length > 0) {
       const n = this.pendingOrders.length;
-      return { label: `START CRAFTING  (${n} order${n > 1 ? 's' : ''} waiting)`, bg: 0x001133, border: 0x4488ff, color: '#88bbff' };
+      return { label: `START CRAFTING  (${n} order${n > 1 ? 's' : ''} waiting)`, bg: 0x001133, border: 0x4488ff, color: '#88bbff', enabled: true };
     }
     if (this.activeOrder !== null && this.heatZoneBar.state === 'released') {
       const allDone = this.activeOrder.sideTimers.every(st => st.state === 'passed' || st.state === 'failed');
       if (allDone) {
-        return { label: 'COMPLETE ORDER  ✓', bg: 0x003311, border: 0x44ff88, color: '#44ff88' };
+        return { label: 'COMPLETE ORDER  ✓', bg: 0x003311, border: 0x44ff88, color: '#44ff88', enabled: true };
       }
+      return { label: 'Finish the sides first  ↓', bg: 0x111100, border: 0x555533, color: '#666644', enabled: false };
     }
-    return null;
+    if (this.rushWave.state === 'active') {
+      return { label: 'Customers arriving...', bg: 0x0d0d0d, border: 0x333333, color: '#444444', enabled: false };
+    }
+    return { label: 'Waiting...', bg: 0x0d0d0d, border: 0x333333, color: '#444444', enabled: false };
+  }
+
+  private updateActionBtn(): void {
+    const info = this.getKitchenAction();
+    this.actionBtn.setFillStyle(info.bg, info.enabled ? 0.95 : 0.55);
+    this.actionBtn.setStrokeStyle(info.enabled ? 3 : 1, info.border);
+    this.actionBtnText.setText(info.label);
+    this.actionBtnText.setColor(info.color);
   }
 
   private drawTierButton(g: Phaser.GameObjects.Group, x: number, y: number, tier: IngredientTier, label: string, color: number): void {
@@ -772,14 +822,6 @@ export class GameScene extends Phaser.Scene {
     // Border — highlight yellow when tap-ready
     const barBorderColor = this.heatZoneBar.state === 'rising' ? 0xffee00 : 0x666666;
     g.add(this.add.rectangle(hx, hy, bw, bh).setOrigin(0, 0).setStrokeStyle(2, barBorderColor).setDepth(7));
-
-    // Full-bar tap target when rising (for iPad / touch)
-    if (this.heatZoneBar.state === 'rising') {
-      const hitArea = this.add.rectangle(hx - 10, hy, bw + 20, bh, 0x000000, 0)
-        .setOrigin(0, 0).setInteractive({ useHandCursor: true }).setDepth(9);
-      hitArea.on('pointerdown', () => this.releaseHeatZone());
-      g.add(hitArea);
-    }
 
     // State text under bar
     const stateStr = this.heatZoneBar.state === 'rising' ? 'TAP TO RELEASE!'
