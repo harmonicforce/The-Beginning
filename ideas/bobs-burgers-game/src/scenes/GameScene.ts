@@ -200,34 +200,128 @@ export class GameScene extends Phaser.Scene {
       { fontFamily: 'monospace', fontSize: '17px', color: '#444444', fontStyle: 'bold' },
     ).setOrigin(0.5).setDepth(16);
 
-    // ── Global scene-level pointer handler (belt-and-suspenders for iOS) ──
-    // Covers critical tap targets by coordinate so they work even if
-    // Phaser's per-object input pipeline misfires on iOS Chrome/Safari.
+    // ── Global scene-level pointer handler ──
+    // All interactive areas use coordinate-based hit testing here instead of
+    // per-object setInteractive()+on('pointerdown'), which is unreliable on
+    // iOS Chrome/Safari when objects are destroyed and recreated every frame.
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const px = pointer.x;
       const py = pointer.y;
+      const hit = (rx: number, ry: number, rw: number, rh: number): boolean =>
+        px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
 
-      // Main action button
-      if (px >= abtnX && px <= abtnX + abtnW && py >= KITCHEN.buttonY && py <= KITCHEN.buttonY + abtnH) {
-        this.onSpaceBar();
+      // ── Modals take priority — consume all taps ──
+      if (this.currentModal === 'louise_gambit') {
+        if (this.louiseGambit.state === 'resolved') {
+          // Result modal: close btn centered at (640, 420), 180×44
+          if (hit(550, 398, 180, 44)) this.currentModal = null;
+        } else {
+          // INTERVENE centered at (W/2-120, H/2+60)=(520,420), 200×50
+          if (hit(420, 395, 200, 50))      this.handleLouiseIntervene();
+          // DEPLOY centered at (W/2+120, H/2+60)=(760,420), 200×50
+          else if (hit(660, 395, 200, 50)) this.handleLouiseDeploy();
+        }
+        return;
+      }
+      if (this.currentModal === 'fischoeder') {
+        // ACCEPT centered at (W/2-130, H/2+110)=(510,470), 220×52
+        if (hit(400, 444, 220, 52))      this.handleFischeoderAccept();
+        // RESIST centered at (W/2+130, H/2+110)=(770,470), 220×52
+        else if (hit(660, 444, 220, 52)) this.handleFischeoderResist();
+        return;
+      }
+      if (this.currentModal !== null) return;
+
+      // ── Kitchen (left panel, x < KITCHEN_W) ──
+      if (px < KITCHEN_W) {
+        // Main action button: x:10, y:485, w:470, h:56
+        if (hit(abtnX, KITCHEN.buttonY, abtnW, abtnH)) {
+          this.onSpaceBar(); return;
+        }
+
+        // Heat zone bar (wider hit pad for fat fingers)
+        if (this.heatZoneBar.state === 'rising'
+            && hit(KITCHEN.heatZoneX - 10, KITCHEN.heatZoneY, KITCHEN.heatZoneW + 20, KITCHEN.heatZoneH)) {
+          this.releaseHeatZone(); return;
+        }
+
+        // Ingredient tier buttons: tierY=205, buttons at y=223, each 90×30
+        if (hit(10, 223, 90, 30) && hasStock(this.inventory, IngredientTier.COMMON)) {
+          this.selectedTier = IngredientTier.COMMON; return;
+        }
+        if (hit(105, 223, 90, 30) && hasStock(this.inventory, IngredientTier.RARE)) {
+          this.selectedTier = IngredientTier.RARE; return;
+        }
+        if (hit(200, 223, 90, 30) && hasStock(this.inventory, IngredientTier.LEGENDARY)) {
+          this.selectedTier = IngredientTier.LEGENDARY; return;
+        }
+
+        // Side timers: baseY=315, boxes at sy=333+i*52, each 200×44
+        if (this.activeOrder) {
+          for (let i = 0; i < this.activeOrder.sideTimers.length; i++) {
+            const st = this.activeOrder.sideTimers[i];
+            const sy = 333 + i * 52;
+            if (hit(10, sy, 200, 44)) {
+              if (st.state === 'running') { st.pull(); return; }
+              if (st.state === 'failed') { st.restart(); st.start(); return; }
+            }
+          }
+        }
+
+        // Encouragement buttons (yips only): bobY=555, buttons at 591/615/639, each 240×20
+        if (this.yips.isActive) {
+          if (hit(10, 591, 240, 20)) { this.yips.addLindaEncouragement(); return; }
+          if (hit(10, 615, 240, 20)) { this.yips.addFamilyAccidentalEncouragement(); return; }
+          if (hit(10, 639, 240, 20)) { if (this.teddy.state === 'seated') this.yips.addTeddyPepTalk(); return; }
+        }
+
+        // Family meeting button: x:10, y:655, w:180, h:52
+        if (hit(10, 655, 180, 52)) { this.callFamilyMeeting(); return; }
+
         return;
       }
 
-      // Heat zone bar (wider hit pad for fat fingers)
-      const hx = KITCHEN.heatZoneX - 10;
-      const hy = KITCHEN.heatZoneY;
-      if (this.heatZoneBar.state === 'rising'
-          && px >= hx && px <= hx + KITCHEN.heatZoneW + 20
-          && py >= hy && py <= hy + KITCHEN.heatZoneH) {
-        this.releaseHeatZone();
-        return;
+      // ── Floor (right panel, x >= KITCHEN_W) ──
+
+      // Stool busing: sy=120, sby=136+row*36, sx=595+col*56, each 52×30
+      const stoolSeats = this.seating.getAllSeats().filter(s => s.type === 'stool');
+      for (let i = 0; i < stoolSeats.length; i++) {
+        const seat = stoolSeats[i];
+        if (seat.status !== 'dirty') continue;
+        const col = i % 5;
+        const row = Math.floor(i / 5);
+        const sx = 595 + col * 56;
+        const sby = 136 + row * 36;
+        if (hit(sx, sby, 52, 30)) { this.busing.busNow(seat.id); return; }
       }
 
-      // Family meeting button
-      const mtgY = HUD_H + 600;
-      if (px >= 10 && px <= 190 && py >= mtgY && py <= mtgY + 52) {
-        this.callFamilyMeeting();
-        return;
+      // Booth busing: by=205, bby=223+row*100, bx=595+col*340, each 330×90
+      const boothSeats = this.seating.getAllSeats().filter(s => s.type === 'booth');
+      for (let i = 0; i < boothSeats.length; i++) {
+        const seat = boothSeats[i];
+        if (seat.status !== 'dirty') continue;
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const bx = 595 + col * 340;
+        const bby = 223 + row * 100;
+        if (hit(bx, bby, 330, 90)) { this.busing.busNow(seat.id); return; }
+      }
+
+      // Family assignment buttons: fy=530, my=550+i*48, orders bx=705, busing bx=795, each 80×26
+      const chars: FamilyCharacter[] = ['linda', 'tina', 'gene', 'louise'];
+      for (let i = 0; i < chars.length; i++) {
+        const char = chars[i];
+        const my = 550 + i * 48;
+        if (hit(705, my + 2, 80, 26)) {
+          this.familyService.assignRole(char, 'orders');
+          if (this.familyService.get(char)?.serviceState === 'correct') this.botd.recordCorrectFamilyAssignment();
+          return;
+        }
+        if (hit(795, my + 2, 80, 26)) {
+          this.familyService.assignRole(char, 'busing');
+          if (this.familyService.get(char)?.serviceState === 'correct') this.botd.recordCorrectFamilyAssignment();
+          return;
+        }
       }
     });
 
@@ -558,6 +652,38 @@ export class GameScene extends Phaser.Scene {
     this.yips.addFamilyAccidentalEncouragement();
   }
 
+  private handleLouiseIntervene(): void {
+    this.louiseGambit.intervene();
+    this.morale.boost(0.05);
+    this.currentModal = null;
+    this.familyService.setLouiseMood(false);
+    this.notify('You pulled Louise aside. Chaos defused. +morale', '#44aaff', 4000);
+  }
+
+  private handleLouiseDeploy(): void {
+    this.louiseGambit.deploy();
+    this.applyGambitResult();
+    const res = this.louiseGambit.result;
+    if (res) this.notify(res.description, res.outcome === 'good' ? '#44ff88' : '#ff4444', 8000);
+  }
+
+  private handleFischeoderAccept(): void {
+    this.fischoeder.accept();
+    this.totalRevenue += this.fischoeder.shortTermReward;
+    this.belcherRating.recordRevenue(this.fischoeder.shortTermReward);
+    this.currentModal = null;
+    this.yips.fischoederPresent = false;
+    this.notify(`Fischoeder accepted. +$${this.fischoeder.shortTermReward}. He tips his hat and leaves.`, '#88cc44', 5000);
+  }
+
+  private handleFischeoderResist(): void {
+    this.fischoeder.resist();
+    this.currentModal = null;
+    this.yips.fischoederPresent = false;
+    this.morale.boost(0.08);
+    this.notify('"Good for you, Bob." He leaves. Tension hangs in the air. +morale.', '#ff8866', 5000);
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // SESSION END
   // ──────────────────────────────────────────────────────────────────────────
@@ -723,8 +849,6 @@ export class GameScene extends Phaser.Scene {
     const mtgBtn = this.add.rectangle(10, mtgY, 180, 52, 0x224466, 0.9).setOrigin(0, 0).setDepth(5);
     const mtgTxt = this.add.text(100, mtgY + 26, 'Family Meeting', { fontFamily: 'monospace', fontSize: '13px', color: '#aaddff' }).setOrigin(0.5).setDepth(6);
     g.add(mtgBtn); g.add(mtgTxt);
-    mtgBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.callFamilyMeeting());
-    mtgTxt.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.callFamilyMeeting());
 
     // Morale decay info
     g.add(this.add.text(200, mtgY + 8, `Meeting ${this.morale.meetingCount + 1}: +${(0.25 * Math.pow(0.6, this.morale.meetingCount) * 100).toFixed(0)}%`, { fontFamily: 'monospace', fontSize: '11px', color: '#557799' }).setDepth(5));
@@ -770,10 +894,6 @@ export class GameScene extends Phaser.Scene {
     const stockTxt = tier !== IngredientTier.COMMON ? ` (${this.inventory[tier]})` : '';
     const btnTxt = this.add.text(x + 45, y + 15, label + stockTxt, { fontFamily: 'monospace', fontSize: '10px', color: hasStock_ ? '#ffffff' : '#555555' }).setOrigin(0.5).setDepth(6);
     g.add(bg); g.add(btnTxt);
-    if (hasStock_) {
-      bg.setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.selectedTier = tier; });
-      btnTxt.setInteractive({ useHandCursor: true }).on('pointerdown', () => { this.selectedTier = tier; });
-    }
   }
 
   private drawHeatZoneBar(g: Phaser.GameObjects.Group): void {
@@ -854,17 +974,13 @@ export class GameScene extends Phaser.Scene {
         g.add(this.add.rectangle(15, sy + 22, barW * frac, 10, barColor).setOrigin(0, 0).setDepth(6));
         const remSec = Math.max(0, st.deadlineSec - st.elapsed).toFixed(1);
         g.add(this.add.text(180, sy + 22, `${remSec}s`, { fontFamily: 'monospace', fontSize: '10px', color: '#ffaa44' }).setOrigin(0, 0).setDepth(6));
-        g.add(this.add.text(15, sy + 32, 'Click to pull!', { fontFamily: 'monospace', fontSize: '10px', color: '#ffdd44' }).setDepth(6));
-        const btn = this.add.rectangle(10, sy, 200, 44, 0x000000, 0).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-        btn.on('pointerdown', () => { st.pull(); });
-        g.add(btn);
+        g.add(this.add.text(15, sy + 32, 'Tap to pull!', { fontFamily: 'monospace', fontSize: '10px', color: '#ffdd44' }).setDepth(6));
       } else if (st.state === 'passed') {
         g.add(this.add.text(15, sy + 18, '✓ Done', { fontFamily: 'monospace', fontSize: '12px', color: '#44ff66' }).setDepth(6));
       } else if (st.state === 'failed') {
         g.add(this.add.text(15, sy + 10, '✗ BURNED/SPILLED', { fontFamily: 'monospace', fontSize: '11px', color: '#ff4444' }).setDepth(6));
-        const restartBtn = this.add.rectangle(15, sy + 26, 90, 14, 0x444444).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        const restartBtn = this.add.rectangle(15, sy + 26, 90, 14, 0x444444).setOrigin(0, 0);
         const restartTxt = this.add.text(60, sy + 33, 'Restart', { fontFamily: 'monospace', fontSize: '10px', color: '#ffaa44' }).setOrigin(0.5).setDepth(6);
-        restartBtn.on('pointerdown', () => { st.restart(); st.start(); });
         g.add(restartBtn); g.add(restartTxt);
       } else if (st.state === 'idle') {
         g.add(this.add.text(15, sy + 14, 'Starts when heat zone releases', { fontFamily: 'monospace', fontSize: '9px', color: '#555555' }).setDepth(6));
@@ -880,9 +996,8 @@ export class GameScene extends Phaser.Scene {
     ];
     sources.forEach((src, i) => {
       const sy = baseY + i * 24;
-      const btn = this.add.rectangle(10, sy, 240, 20, src.color, 0.8).setOrigin(0, 0).setInteractive({ useHandCursor: true }).setDepth(5);
+      const btn = this.add.rectangle(10, sy, 240, 20, src.color, 0.8).setOrigin(0, 0).setDepth(5);
       const txt = this.add.text(125, sy + 10, src.label, { fontFamily: 'monospace', fontSize: '10px', color: '#cccccc' }).setOrigin(0.5).setDepth(6);
-      btn.on('pointerdown', src.action);
       g.add(btn); g.add(txt);
     });
   }
@@ -931,11 +1046,6 @@ export class GameScene extends Phaser.Scene {
         : customer?.isTeddy ? 'TEDDY' : `C${seat.customerId}`;
       g.add(this.add.text(sx + stoolW / 2 - 2, sby + 15, label, { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5).setDepth(6));
 
-      if (seat.status === 'dirty') {
-        const busBtn = this.add.rectangle(sx, sby, stoolW - 4, 30, 0x000000, 0).setOrigin(0, 0).setInteractive({ useHandCursor: true }).setDepth(7);
-        busBtn.on('pointerdown', () => this.busing.busNow(seat.id));
-        g.add(busBtn);
-      }
 
       if (customer && (customer.state === 'seated' || customer.state === 'ordered')) {
         const patFrac = Math.max(0, customer.patience / RUSH.seatPatienceSec);
@@ -983,9 +1093,6 @@ export class GameScene extends Phaser.Scene {
         g.add(this.add.text(bx + boothW / 2, bby + boothH / 2, 'EMPTY', { fontFamily: 'monospace', fontSize: '12px', color: '#333355' }).setOrigin(0.5).setDepth(6));
       } else {
         g.add(this.add.text(bx + boothW / 2, bby + boothH / 2, 'DIRTY', { fontFamily: 'monospace', fontSize: '12px', color: '#aa5500' }).setOrigin(0.5).setDepth(6));
-        const busBtn = this.add.rectangle(bx, bby, boothW, boothH, 0x000000, 0).setOrigin(0, 0).setInteractive({ useHandCursor: true }).setDepth(7);
-        busBtn.on('pointerdown', () => this.busing.busNow(seat.id));
-        g.add(busBtn);
       }
     });
   }
@@ -1041,15 +1148,6 @@ export class GameScene extends Phaser.Scene {
         const roleLabel = `${role}${isCorrect ? '★' : ''}`;
         const roleTxt = this.add.text(bx + 40, my + 15, roleLabel, { fontFamily: 'monospace', fontSize: '10px', color: isActive ? '#ffffff' : '#666666' }).setOrigin(0.5).setDepth(6);
         g.add(roleTxt);
-        btn.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-          this.familyService.assignRole(char, role);
-          if (this.familyService.get(char)?.serviceState === 'correct') {
-            this.botd.recordCorrectFamilyAssignment();
-          }
-        });
-        roleTxt.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-          this.familyService.assignRole(char, role);
-        });
       });
 
       // Drift status
@@ -1105,8 +1203,8 @@ export class GameScene extends Phaser.Scene {
     g.add(this.add.text(W / 2, H / 2 - 55, 'INTERVENE — Costs attention. Defuses chaos. Small morale gain.\nNo big risk. No big reward.', { fontFamily: 'monospace', fontSize: '13px', color: '#aaddff', align: 'center' }).setOrigin(0.5).setDepth(20));
     g.add(this.add.text(W / 2, H / 2 + 5, 'DEPLOY — Let Louise run the scheme. Two branches:\n[GOOD]: Meaningful reward  [BAD]: Disruption + morale hit', { fontFamily: 'monospace', fontSize: '13px', color: '#ffcc88', align: 'center' }).setOrigin(0.5).setDepth(20));
 
-    const intervBtn = this.add.rectangle(W / 2 - 120, H / 2 + 60, 200, 50, 0x224466).setInteractive({ useHandCursor: true }).setDepth(21);
-    const deployBtn = this.add.rectangle(W / 2 + 120, H / 2 + 60, 200, 50, 0x662222).setInteractive({ useHandCursor: true }).setDepth(21);
+    const intervBtn = this.add.rectangle(W / 2 - 120, H / 2 + 60, 200, 50, 0x224466).setDepth(21);
+    const deployBtn = this.add.rectangle(W / 2 + 120, H / 2 + 60, 200, 50, 0x662222).setDepth(21);
     intervBtn.setStrokeStyle(2, 0x4488ff);
     deployBtn.setStrokeStyle(2, 0xff4444);
     g.add(intervBtn);
@@ -1114,19 +1212,6 @@ export class GameScene extends Phaser.Scene {
     g.add(this.add.text(W / 2 - 120, H / 2 + 60, 'INTERVENE', { fontFamily: 'monospace', fontSize: '14px', color: '#aaddff', fontStyle: 'bold' }).setOrigin(0.5).setDepth(22));
     g.add(this.add.text(W / 2 + 120, H / 2 + 60, 'DEPLOY', { fontFamily: 'monospace', fontSize: '14px', color: '#ff8888', fontStyle: 'bold' }).setOrigin(0.5).setDepth(22));
 
-    intervBtn.on('pointerdown', () => {
-      this.louiseGambit.intervene();
-      this.morale.boost(0.05);
-      this.currentModal = null;
-      this.familyService.setLouiseMood(false);
-      this.notify('You pulled Louise aside. Chaos defused. +morale', '#44aaff', 4000);
-    });
-    deployBtn.on('pointerdown', () => {
-      this.louiseGambit.deploy();
-      this.applyGambitResult();
-      const res = this.louiseGambit.result;
-      if (res) this.notify(res.description, res.outcome === 'good' ? '#44ff88' : '#ff4444', 8000);
-    });
   }
 
   private drawFischeoderModal(): void {
@@ -1145,8 +1230,8 @@ export class GameScene extends Phaser.Scene {
       g.add(this.add.text(W / 2, H / 2 - 135 + i * 26, line, { fontFamily: 'Georgia, serif', fontSize: '14px', color: '#cccc88', fontStyle: 'italic', align: 'center', wordWrap: { width: 700 } }).setOrigin(0.5).setDepth(20));
     });
 
-    const acceptBtn = this.add.rectangle(W / 2 - 130, H / 2 + 110, 220, 52, 0x334411).setInteractive({ useHandCursor: true }).setDepth(21);
-    const resistBtn = this.add.rectangle(W / 2 + 130, H / 2 + 110, 220, 52, 0x441111).setInteractive({ useHandCursor: true }).setDepth(21);
+    const acceptBtn = this.add.rectangle(W / 2 - 130, H / 2 + 110, 220, 52, 0x334411).setDepth(21);
+    const resistBtn = this.add.rectangle(W / 2 + 130, H / 2 + 110, 220, 52, 0x441111).setDepth(21);
     acceptBtn.setStrokeStyle(2, 0x88cc44);
     resistBtn.setStrokeStyle(2, 0xff4444);
     g.add(acceptBtn);
@@ -1156,32 +1241,16 @@ export class GameScene extends Phaser.Scene {
     g.add(this.add.text(W / 2 + 130, H / 2 + 103, 'RESIST', { fontFamily: 'monospace', fontSize: '14px', color: '#ff6644', fontStyle: 'bold' }).setOrigin(0.5).setDepth(22));
     g.add(this.add.text(W / 2 + 130, H / 2 + 120, 'Preserves autonomy / more pressure next session', { fontFamily: 'monospace', fontSize: '10px', color: '#774444', align: 'center', wordWrap: { width: 200 } }).setOrigin(0.5).setDepth(22));
 
-    acceptBtn.on('pointerdown', () => {
-      this.fischoeder.accept();
-      this.totalRevenue += this.fischoeder.shortTermReward;
-      this.belcherRating.recordRevenue(this.fischoeder.shortTermReward);
-      this.currentModal = null;
-      this.yips.fischoederPresent = false;
-      this.notify(`Fischoeder accepted. +$${this.fischoeder.shortTermReward}. He tips his hat and leaves.`, '#88cc44', 5000);
-    });
-    resistBtn.on('pointerdown', () => {
-      this.fischoeder.resist();
-      this.currentModal = null;
-      this.yips.fischoederPresent = false;
-      this.morale.boost(0.08);
-      this.notify('"Good for you, Bob." He leaves. Tension hangs in the air. +morale.', '#ff8866', 5000);
-    });
   }
 
   private drawResultModal(description: string, color: string): void {
     const g = this.modalGroup;
     this.drawModalBg(g, 0x111111);
     g.add(this.add.text(W / 2, H / 2 - 60, description, { fontFamily: 'Georgia, serif', fontSize: '16px', color, align: 'center', wordWrap: { width: 700 }, fontStyle: 'italic' }).setOrigin(0.5).setDepth(20));
-    const closeBtn = this.add.rectangle(W / 2, H / 2 + 60, 180, 44, 0x333333).setInteractive({ useHandCursor: true }).setDepth(21);
+    const closeBtn = this.add.rectangle(W / 2, H / 2 + 60, 180, 44, 0x333333).setDepth(21);
     closeBtn.setStrokeStyle(1, 0x888888);
     g.add(closeBtn);
     g.add(this.add.text(W / 2, H / 2 + 60, 'Back to work', { fontFamily: 'monospace', fontSize: '14px', color: '#888888' }).setOrigin(0.5).setDepth(22));
-    closeBtn.on('pointerdown', () => { this.currentModal = null; });
   }
 
   private drawModalBg(g: Phaser.GameObjects.Group, color: number): void {
