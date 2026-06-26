@@ -20,7 +20,7 @@ import { Fischoeder } from '../systems/Fischoeder';
 import { BelcherRating } from '../systems/BelcherRating';
 import { Teddy } from '../entities/Teddy';
 import { Customer } from '../entities/Customer';
-import { Order } from '../entities/Order';
+import { Order, resetOrderIds } from '../entities/Order';
 import { IngredientTier, IngredientInventory, startingInventory, hasStock } from '../entities/Ingredient';
 import { generateOrder, computeOrderRevenue, hasBurgerOfDay, getSideItems } from '../systems/Menu';
 import { computeQuality } from '../systems/QualityScore';
@@ -141,6 +141,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Phaser reuses the same scene instance on restart — field initializers only
+    // run once at construction. Explicitly reset all session state each time.
+    this.seatedCustomers        = new Map();
+    this.pendingOrders          = [];
+    this.activeOrder            = null;
+    this.completedOrders        = [];
+    this.totalRevenue           = 0;
+    this.selectedTier           = IngredientTier.COMMON;
+    this.qualityBonusFromGambit = 0;
+    this.louiseDisruptionTimer  = 15;
+    this.currentModal           = null;
+    this.notifications          = [];
+    this.teddyQuestOffered      = false;
+    this.sessionEnded           = false;
+    this.orderTakeTimers        = new Map();
+    this.deliveryTimers         = new Map();
+    resetOrderIds();
+
     this.heatZoneBar   = new HeatZoneBar();
     this.seating       = new SeatingManager();
     this.busing        = new BusingManager(this.seating);
