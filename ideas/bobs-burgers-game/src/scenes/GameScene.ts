@@ -485,6 +485,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private customerWalkout(customer: Customer): void {
+    // If this customer had the active crafting order, abandon it so the game doesn't lock up
+    if (this.activeOrder && this.activeOrder.customer.id === customer.id) {
+      this.activeOrder = null;
+      this.heatZoneBar.reset();
+    }
     customer.state = 'leaving';
     if (customer.seatId) {
       this.busing.markDirty(customer.seatId);
@@ -529,10 +534,10 @@ export class GameScene extends Phaser.Scene {
     if (this.currentModal !== null) return;
     if (this.heatZoneBar.state === 'rising') {
       this.releaseHeatZone();
-    } else if (this.heatZoneBar.state === 'idle' || this.heatZoneBar.state === 'released') {
+    } else if (this.heatZoneBar.state === 'idle' || this.heatZoneBar.state === 'released' || this.heatZoneBar.state === 'missed') {
       if (this.activeOrder === null && this.pendingOrders.length > 0) {
         this.startCraftingNextOrder();
-      } else if (this.activeOrder !== null && this.heatZoneBar.state === 'released') {
+      } else if (this.activeOrder !== null) {
         this.checkOrderComplete();
       }
     }
@@ -801,7 +806,7 @@ export class GameScene extends Phaser.Scene {
       const totalSides = this.activeOrder.sideTimers.length;
       const hzDone = this.heatZoneBar.state === 'released' || this.heatZoneBar.state === 'missed';
       if (!hzDone) {
-        g.add(this.add.text(10, orderY + 76, 'TAP heat bar → or button below to release!', { fontFamily: 'monospace', fontSize: '11px', color: '#ffdd55' }).setDepth(5));
+        g.add(this.add.text(10, orderY + 76, 'TAP bar or button when in GREEN zone!', { fontFamily: 'monospace', fontSize: '11px', color: '#ffdd55' }).setDepth(5));
       } else if (totalSides > sidesReady) {
         g.add(this.add.text(10, orderY + 76, `Sides: ${sidesReady}/${totalSides} done — tap each to pull`, { fontFamily: 'monospace', fontSize: '11px', color: '#aaaaff' }).setDepth(5));
       } else {
@@ -865,7 +870,7 @@ export class GameScene extends Phaser.Scene {
       const n = this.pendingOrders.length;
       return { label: `START CRAFTING  (${n} order${n > 1 ? 's' : ''} waiting)`, bg: 0x001133, border: 0x4488ff, color: '#88bbff', enabled: true };
     }
-    if (this.activeOrder !== null && this.heatZoneBar.state === 'released') {
+    if (this.activeOrder !== null && (this.heatZoneBar.state === 'released' || this.heatZoneBar.state === 'missed')) {
       const allDone = this.activeOrder.sideTimers.every(st => st.state === 'passed' || st.state === 'failed');
       if (allDone) {
         return { label: 'COMPLETE ORDER  ✓', bg: 0x003311, border: 0x44ff88, color: '#44ff88', enabled: true };
@@ -922,7 +927,7 @@ export class GameScene extends Phaser.Scene {
     g.add(this.add.text(hx + bw + 4, hy + bh * 0.75, 'RED', { fontFamily: 'monospace', fontSize: '9px', color: '#ff4422' }).setDepth(5));
 
     // Rising fill
-    if (this.heatZoneBar.state === 'rising' || this.heatZoneBar.state === 'released') {
+    if (this.heatZoneBar.state === 'rising' || this.heatZoneBar.state === 'released' || this.heatZoneBar.state === 'missed') {
       const pos = this.heatZoneBar.position;
       const fillH = bh * pos;
       const fillY = hy + bh - fillH;
@@ -931,7 +936,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Result indicator
-    if (this.heatZoneBar.state === 'released') {
+    if (this.heatZoneBar.state === 'released' || this.heatZoneBar.state === 'missed') {
       const res = this.heatZoneBar.getLastResult();
       if (res) {
         const indY = hy + bh * (1 - res.position) - 2;

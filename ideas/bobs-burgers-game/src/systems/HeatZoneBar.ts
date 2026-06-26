@@ -18,6 +18,7 @@ export interface HeatZoneResult {
 export class HeatZoneBar {
   state: HeatZoneState = 'idle';
   position: number = 0;
+  direction: 1 | -1 = 1;
   private speedMultiplier: number = 1;
   private greenZoneMultiplier: number = 1;
   private lastResult: HeatZoneResult | null = null;
@@ -51,6 +52,7 @@ export class HeatZoneBar {
     if (this.state === 'idle' || this.state === 'released' || this.state === 'missed') {
       this.state = 'rising';
       this.position = 0;
+      this.direction = 1;
       this.lastResult = null;
     }
   }
@@ -71,17 +73,20 @@ export class HeatZoneBar {
 
   update(deltaSec: number): void {
     if (this.state !== 'rising') return;
-    this.position += HEAT_ZONE.baseBarSpeed * this.speedMultiplier * deltaSec;
+    this.position += HEAT_ZONE.baseBarSpeed * this.speedMultiplier * deltaSec * this.direction;
     if (this.position >= 1.0) {
       this.position = 1.0;
-      this.state = 'missed';
-      this.lastResult = { position: 1.0, timingScore: 0, zone: 'missed' };
+      this.direction = -1;
+    } else if (this.position <= 0.0) {
+      this.position = 0.0;
+      this.direction = 1;
     }
   }
 
   reset(): void {
     this.state = 'idle';
     this.position = 0;
+    this.direction = 1;
     this.lastResult = null;
   }
 
