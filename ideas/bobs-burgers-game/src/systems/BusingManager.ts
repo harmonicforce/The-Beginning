@@ -33,7 +33,7 @@ export class BusingManager {
     });
   }
 
-  update(deltaSec: number): void {
+  update(deltaSec: number, familyOnBusing = false): void {
     for (const [seatId, elapsed] of this.dirtyTimers) {
       const seat = this.seating.getSeat(seatId);
       if (!seat || seat.status !== 'dirty') {
@@ -42,8 +42,11 @@ export class BusingManager {
       }
       const newElapsed = elapsed + deltaSec;
       this.dirtyTimers.set(seatId, newElapsed);
-      // Auto-bus after double the normal bus time — player is faster
-      if (newElapsed >= seat.busTimeSec * 2) {
+      if (familyOnBusing && newElapsed >= seat.busTimeSec) {
+        // Family correctly assigned to busing: auto-bus at spec speed
+        this.busNow(seatId);
+      } else if (!familyOnBusing && newElapsed >= seat.busTimeSec * 3) {
+        // No family on busing: very slow fallback so game can't fully deadlock
         this.busNow(seatId);
       }
     }

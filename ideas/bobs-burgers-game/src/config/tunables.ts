@@ -116,6 +116,8 @@ export const FAMILY_SERVICE = {
   driftDelayMinSec: 30,                 // wrong assignment → problem behavior after...
   driftDelayMaxSec: 60,
   correctCompetence: 1.0,
+  orderTakeDelaySec: 3,                 // [TUNABLE] family (on orders) takes order this many secs after customer seats
+  deliveryDelaySec: 4,                  // [TUNABLE] family (on orders) delivers food this many secs after cooking
 } as const;
 
 // ─── FISCHOEDER ──────────────────────────────────────────────────────────────
@@ -141,7 +143,7 @@ export const RUSH = {
   arrivalStartMaxSec: 12,
   arrivalEndMinSec: 5,                  // ramps to every 5–8s by wave end
   arrivalEndMaxSec: 8,
-  seatPatienceSec: 20,                  // seated → food delivered, else walkout
+  seatPatienceSec: 35,                  // seated → food delivered, else walkout (increased from 20 to account for order-take + delivery delays)
   doorQueuePatienceSec: 15,             // waiting for a seat, else leaves
   orderSidesMin: 0,                     // each customer: 1 main + 0–2 sides/drinks
   orderSidesMax: 2,

@@ -9,8 +9,9 @@ import { Order } from './Order';
 
 export type CustomerState =
   | 'queued'
-  | 'seated'
-  | 'ordered'
+  | 'seated'       // just seated, order not yet taken
+  | 'ordered'      // order taken, in kitchen queue or being crafted
+  | 'food_ready'   // food cooked, waiting for family to deliver
   | 'served'
   | 'leaving';
 
@@ -57,7 +58,7 @@ export function transitionTo(customer: Customer, state: CustomerState): void {
 }
 
 export function updatePatience(customer: Customer, deltaSec: number): boolean {
-  if (customer.state === 'served' || customer.state === 'leaving') return false;
+  if (customer.state === 'served' || customer.state === 'leaving' || customer.state === 'queued') return false;
   customer.patience -= deltaSec;
   return customer.patience <= 0;
 }

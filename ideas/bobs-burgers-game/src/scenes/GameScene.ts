@@ -26,7 +26,7 @@ import { generateOrder, computeOrderRevenue, hasBurgerOfDay, getSideItems } from
 import { computeQuality } from '../systems/QualityScore';
 import { BotDChoice } from '../systems/BurgerOfTheDay';
 import { FamilyCharacter, ServiceRole } from '../entities/FamilyMember';
-import { HEAT_ZONE, RUSH } from '../config/tunables';
+import { HEAT_ZONE, RUSH, FAMILY_SERVICE } from '../config/tunables';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // LAYOUT CONSTANTS
@@ -73,6 +73,12 @@ interface ActiveOrder {
   craftStartTime: number;
 }
 
+interface DeliveryEntry {
+  elapsed: number;
+  order: Order;
+  craftStartTime: number;
+}
+
 interface Notification {
   text: string;
   color: string;
@@ -105,7 +111,8 @@ export class GameScene extends Phaser.Scene {
   private inventory!: IngredientInventory;
   private selectedTier: IngredientTier = IngredientTier.COMMON;
   private qualityBonusFromGambit: number = 0;
-  private servicePaused: boolean = false;
+  private orderTakeTimers: Map<number, number> = new Map();
+  private deliveryTimers: Map<number, DeliveryEntry> = new Map();
   private louiseDisruptionTimer: number = 15;
   private currentModal: ModalType = null;
   private notifications: Notification[] = [];
@@ -146,8 +153,7 @@ export class GameScene extends Phaser.Scene {
     this.familyService = new FamilyService();
     this.inventory     = startingInventory();
 
-    this.morale.onPause(() => { this.servicePaused = true; });
-    this.morale.onResume(() => { this.servicePaused = false; });
+    // Morale handles its own pause timer internally — no external servicePaused gate needed
 
     this.familyService.onDrift((character, behavior) => {
       this.notify(`${character.toUpperCase()}: ${driftMessage(character, behavior)}`, '#ff9933', 5000);
@@ -282,9 +288,32 @@ export class GameScene extends Phaser.Scene {
       }
 
       // ── Floor (right panel, x >= KITCHEN_W) ──
-
-      // Stool busing: sy=120, sby=136+row*36, sx=595+col*56, each 52×30
       const stoolSeats = this.seating.getAllSeats().filter(s => s.type === 'stool');
+      const boothSeats = this.seating.getAllSeats().filter(s => s.type === 'booth');
+
+      // Customer tap to take order (stool — occupied seat with customer waiting)
+      for (let i = 0; i < stoolSeats.length; i++) {
+        const seat = stoolSeats[i];
+        if (seat.status !== 'occupied') continue;
+        const customer = seat.customerId ? this.seatedCustomers.get(seat.customerId) : null;
+        if (!customer || customer.state !== 'seated') continue;
+        const col = i % 5; const row = Math.floor(i / 5);
+        const sx = 595 + col * 56; const sby = 136 + row * 36;
+        if (hit(sx, sby, 52, 30)) { this.takeCustomerOrder(customer); return; }
+      }
+
+      // Customer tap to take order (booth — occupied seat with customer waiting)
+      for (let i = 0; i < boothSeats.length; i++) {
+        const seat = boothSeats[i];
+        if (seat.status !== 'occupied') continue;
+        const customer = seat.customerId ? this.seatedCustomers.get(seat.customerId) : null;
+        if (!customer || customer.state !== 'seated') continue;
+        const col = i % 2; const row = Math.floor(i / 2);
+        const bx = 595 + col * 340; const bby = 223 + row * 100;
+        if (hit(bx, bby, 330, 90)) { this.takeCustomerOrder(customer); return; }
+      }
+
+      // Stool busing (tap dirty stool to clean it immediately)
       for (let i = 0; i < stoolSeats.length; i++) {
         const seat = stoolSeats[i];
         if (seat.status !== 'dirty') continue;
@@ -295,8 +324,7 @@ export class GameScene extends Phaser.Scene {
         if (hit(sx, sby, 52, 30)) { this.busing.busNow(seat.id); return; }
       }
 
-      // Booth busing: by=205, bby=223+row*100, bx=595+col*340, each 330×90
-      const boothSeats = this.seating.getAllSeats().filter(s => s.type === 'booth');
+      // Booth busing (tap dirty booth to clean it immediately)
       for (let i = 0; i < boothSeats.length; i++) {
         const seat = boothSeats[i];
         if (seat.status !== 'dirty') continue;
@@ -344,11 +372,10 @@ export class GameScene extends Phaser.Scene {
     if (this.sessionEnded) return;
     const dt = delta / 1000;
 
-    // Update all systems
-    if (!this.servicePaused) {
-      this.morale.update(dt);
-      this.rushWave.update(dt);
-    }
+    // Morale handles its own pause timer internally — must always run or meeting never unpauses
+    this.morale.update(dt);
+    // Rush wave: customers still arrive and lose patience even during a family meeting
+    this.rushWave.update(dt);
 
     this.heatZoneBar.setYipsActive(this.yips.isActive);
     this.heatZoneBar.update(dt);
@@ -392,8 +419,10 @@ export class GameScene extends Phaser.Scene {
       this.currentModal = 'fischoeder';
     }
 
-    // Family service drift
-    if (!this.servicePaused) this.familyService.update(dt);
+    // Family service: drift doesn't pause for family meetings
+    this.familyService.update(dt);
+    // Busing: auto-bus at spec speed when family is correctly on busing role
+    this.busing.update(dt, this.familyHasCorrectRole('busing'));
 
     // Louise disruption timer
     this.louiseDisruptionTimer -= dt;
@@ -412,9 +441,47 @@ export class GameScene extends Phaser.Scene {
     // Teddy
     this.teddy.update(dt);
 
-    // Customer patience
+    // Order-taking: family auto-takes orders after delay; no new orders during family meeting
+    const hasOrdersFamily = this.familyHasCorrectRole('orders');
+    if (!this.morale.paused) {
+      for (const [custId, elapsed] of this.orderTakeTimers) {
+        const customer = this.seatedCustomers.get(custId);
+        if (!customer || customer.state !== 'seated') {
+          this.orderTakeTimers.delete(custId);
+          continue;
+        }
+        if (hasOrdersFamily) {
+          const newElapsed = elapsed + dt;
+          if (newElapsed >= FAMILY_SERVICE.orderTakeDelaySec) {
+            this.takeCustomerOrder(customer);
+          } else {
+            this.orderTakeTimers.set(custId, newElapsed);
+          }
+        }
+        // No family on orders: player must tap the customer on the floor
+      }
+    }
+
+    // Delivery: family auto-delivers after cooking completes
+    for (const [custId, entry] of this.deliveryTimers) {
+      const customer = this.seatedCustomers.get(custId);
+      if (!customer) {
+        this.deliveryTimers.delete(custId);
+        continue;
+      }
+      if (hasOrdersFamily) {
+        entry.elapsed += dt;
+        if (entry.elapsed >= FAMILY_SERVICE.deliveryDelaySec) {
+          this.deliverOrder(entry.order, customer, entry.craftStartTime);
+          this.deliveryTimers.delete(custId);
+        }
+      }
+      // No family on orders: player must tap "DELIVER ORDER" button
+    }
+
+    // Customer patience drains through all active states
     for (const customer of this.seatedCustomers.values()) {
-      if (customer.state === 'seated' || customer.state === 'ordered') {
+      if (customer.state === 'seated' || customer.state === 'ordered' || customer.state === 'food_ready') {
         customer.patience -= dt;
         if (customer.patience <= 0) {
           this.customerWalkout(customer);
@@ -462,17 +529,10 @@ export class GameScene extends Phaser.Scene {
       if (seat) this.teddy.seat(seat.id);
     }
 
-    // Generate order
-    const isTeddy = customer.isTeddy;
-    const order = generateOrder(
-      customer.id,
-      customer.seatId!,
-      isTeddy,
-      this.botd.currentOrderRate,
-    );
-    customer.order = order;
-    customer.state = 'ordered';
-    this.pendingOrders.push(order);
+    // Customer waits in 'seated' state for their order to be taken.
+    // If family is correctly on 'orders', auto-takes after FAMILY_SERVICE.orderTakeDelaySec.
+    // Otherwise player must tap the customer on the floor.
+    this.orderTakeTimers.set(customer.id, 0);
   }
 
   private onCustomerLeft(customer: Customer): void {
@@ -485,11 +545,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private customerWalkout(customer: Customer): void {
-    // If this customer had the active crafting order, abandon it so the game doesn't lock up
     if (this.activeOrder && this.activeOrder.customer.id === customer.id) {
       this.activeOrder = null;
       this.heatZoneBar.reset();
     }
+    this.orderTakeTimers.delete(customer.id);
+    this.deliveryTimers.delete(customer.id);
+    this.pendingOrders = this.pendingOrders.filter(o => o.customerId !== customer.id);
     customer.state = 'leaving';
     if (customer.seatId) {
       this.busing.markDirty(customer.seatId);
@@ -535,7 +597,16 @@ export class GameScene extends Phaser.Scene {
     if (this.heatZoneBar.state === 'rising') {
       this.releaseHeatZone();
     } else if (this.heatZoneBar.state === 'idle' || this.heatZoneBar.state === 'released' || this.heatZoneBar.state === 'missed') {
-      if (this.activeOrder === null && this.pendingOrders.length > 0) {
+      // Manual delivery when no family on orders and food is ready
+      if (this.activeOrder === null && this.deliveryTimers.size > 0 && !this.familyHasCorrectRole('orders')) {
+        const custId = this.deliveryTimers.keys().next().value!;
+        const entry = this.deliveryTimers.get(custId)!;
+        const customer = this.seatedCustomers.get(custId);
+        if (customer) {
+          this.deliverOrder(entry.order, customer, entry.craftStartTime);
+          this.deliveryTimers.delete(custId);
+        }
+      } else if (this.activeOrder === null && this.pendingOrders.length > 0) {
         this.startCraftingNextOrder();
       } else if (this.activeOrder !== null) {
         this.checkOrderComplete();
@@ -574,11 +645,10 @@ export class GameScene extends Phaser.Scene {
 
   private checkOrderComplete(): void {
     if (!this.activeOrder) return;
-    const { order, sideTimers, customer } = this.activeOrder;
+    const { order, sideTimers, customer, craftStartTime } = this.activeOrder;
 
     if (order.qualityScore === null) return;
 
-    // All sides must be passed (or none required)
     const allSidesDone = sideTimers.every(st => st.state === 'passed' || st.state === 'failed');
     if (!allSidesDone) {
       this.notify('Finish the sides first!', '#ff9933', 2000);
@@ -586,17 +656,25 @@ export class GameScene extends Phaser.Scene {
     }
 
     order.status = 'ready';
-    this.deliverOrder(order, customer);
+    customer.state = 'food_ready';
+    this.deliveryTimers.set(customer.id, { elapsed: 0, order, craftStartTime });
+    this.activeOrder = null;
+    this.heatZoneBar.reset();
+
+    if (this.familyHasCorrectRole('orders')) {
+      this.notify('Food ready! Family is delivering it...', '#44ff88', 3000);
+    } else {
+      this.notify('Food ready! Tap "DELIVER ORDER" button to send it out.', '#ffdd44', 4000);
+    }
   }
 
-  private deliverOrder(order: Order, customer: Customer): void {
+  private deliverOrder(order: Order, customer: Customer, craftStartTime: number = performance.now()): void {
     const quality = order.qualityScore ?? 0;
     const revenue = computeOrderRevenue(order, this.teddy.passiveBuffActive);
     this.totalRevenue += revenue;
     this.belcherRating.recordBurgerQuality(quality);
     this.belcherRating.recordRevenue(revenue);
 
-    const craftStartTime = this.activeOrder?.craftStartTime ?? performance.now();
     customer.state = 'served';
     if (customer.seatId) this.busing.markDirty(customer.seatId);
     this.seatedCustomers.delete(customer.id);
@@ -655,6 +733,28 @@ export class GameScene extends Phaser.Scene {
     this.morale.callMeeting();
     this.notify('Family meeting! Service paused for 8 seconds.', '#aaddff', 4000);
     this.yips.addFamilyAccidentalEncouragement();
+  }
+
+  private takeCustomerOrder(customer: Customer): void {
+    if (customer.state !== 'seated') return;
+    const order = generateOrder(
+      customer.id,
+      customer.seatId!,
+      customer.isTeddy,
+      this.botd.currentOrderRate,
+    );
+    customer.order = order;
+    customer.state = 'ordered';
+    this.pendingOrders.push(order);
+    this.orderTakeTimers.delete(customer.id);
+    Telemetry.emit('order_taken', { customer_id: customer.id, is_teddy: customer.isTeddy });
+  }
+
+  private familyHasCorrectRole(role: ServiceRole): boolean {
+    for (const member of this.familyService.getAll()) {
+      if (member.currentRole === role && member.serviceState === 'correct') return true;
+    }
+    return false;
   }
 
   private handleLouiseIntervene(): void {
@@ -810,8 +910,13 @@ export class GameScene extends Phaser.Scene {
       } else if (totalSides > sidesReady) {
         g.add(this.add.text(10, orderY + 76, `Sides: ${sidesReady}/${totalSides} done — tap each to pull`, { fontFamily: 'monospace', fontSize: '11px', color: '#aaaaff' }).setDepth(5));
       } else {
-        g.add(this.add.text(10, orderY + 76, 'TAP button below to complete & deliver!', { fontFamily: 'monospace', fontSize: '11px', color: '#44ff88' }).setDepth(5));
+        g.add(this.add.text(10, orderY + 76, 'TAP button below to COMPLETE ORDER', { fontFamily: 'monospace', fontSize: '11px', color: '#44ff88' }).setDepth(5));
       }
+    } else if (this.deliveryTimers.size > 0 && !this.familyHasCorrectRole('orders')) {
+      const [, entry] = [...this.deliveryTimers.entries()][0];
+      g.add(this.add.text(10, orderY + 5, `FOOD READY — ORDER #${entry.order.id}`, { fontFamily: 'monospace', fontSize: '13px', color: '#44ff88', fontStyle: 'bold' }).setDepth(5));
+      g.add(this.add.text(10, orderY + 28, 'No family on orders to deliver.', { fontFamily: 'monospace', fontSize: '11px', color: '#888888' }).setDepth(5));
+      g.add(this.add.text(10, orderY + 46, 'TAP "DELIVER ORDER" button below!', { fontFamily: 'monospace', fontSize: '12px', color: '#ffdd44' }).setDepth(5));
     } else if (this.pendingOrders.length > 0) {
       const next = this.pendingOrders[0];
       g.add(this.add.text(10, orderY + 5, `NEXT ORDER #${next.id}`, { fontFamily: 'monospace', fontSize: '13px', color: '#aaaaff' }).setDepth(5));
@@ -866,6 +971,10 @@ export class GameScene extends Phaser.Scene {
     if (this.heatZoneBar.state === 'rising') {
       return { label: '⬇  TAP TO RELEASE!  ⬇', bg: 0x332200, border: 0xffee00, color: '#ffee00', enabled: true };
     }
+    // Manual delivery: food ready, no family on orders to auto-deliver
+    if (this.activeOrder === null && this.deliveryTimers.size > 0 && !this.familyHasCorrectRole('orders')) {
+      return { label: 'DELIVER ORDER ✓', bg: 0x003322, border: 0x44ff88, color: '#44ff88', enabled: true };
+    }
     if (this.activeOrder === null && this.pendingOrders.length > 0) {
       const n = this.pendingOrders.length;
       return { label: `START CRAFTING  (${n} order${n > 1 ? 's' : ''} waiting)`, bg: 0x001133, border: 0x4488ff, color: '#88bbff', enabled: true };
@@ -878,6 +987,10 @@ export class GameScene extends Phaser.Scene {
       return { label: 'Finish the sides first  ↓', bg: 0x111100, border: 0x555533, color: '#666644', enabled: false };
     }
     if (this.rushWave.state === 'active') {
+      const waitingCount = [...this.seatedCustomers.values()].filter(c => c.state === 'seated').length;
+      if (waitingCount > 0 && !this.familyHasCorrectRole('orders')) {
+        return { label: `${waitingCount} customer${waitingCount > 1 ? 's' : ''} waiting — TAP FLOOR!`, bg: 0x221100, border: 0xffaa33, color: '#ffaa33', enabled: false };
+      }
       return { label: 'Customers arriving...', bg: 0x0d0d0d, border: 0x333333, color: '#444444', enabled: false };
     }
     return { label: 'Waiting...', bg: 0x0d0d0d, border: 0x333333, color: '#444444', enabled: false };
@@ -1046,10 +1159,14 @@ export class GameScene extends Phaser.Scene {
       g.add(rect);
 
       const customer = seat.customerId ? this.seatedCustomers.get(seat.customerId) : null;
-      let label = seat.status === 'empty' ? 'EMPTY'
-        : seat.status === 'dirty' ? 'DIRTY'
-        : customer?.isTeddy ? 'TEDDY' : `C${seat.customerId}`;
-      g.add(this.add.text(sx + stoolW / 2 - 2, sby + 15, label, { fontFamily: 'monospace', fontSize: '9px', color: '#cccccc' }).setOrigin(0.5).setDepth(6));
+      let label: string;
+      if (seat.status === 'empty') label = 'EMPTY';
+      else if (seat.status === 'dirty') label = 'DIRTY';
+      else if (customer?.isTeddy) label = 'TEDDY';
+      else if (customer?.state === 'seated') label = `C${seat.customerId}?`;
+      else if (customer?.state === 'food_ready') label = `C${seat.customerId}✓`;
+      else label = `C${seat.customerId ?? ''}`;
+      g.add(this.add.text(sx + stoolW / 2 - 2, sby + 15, label, { fontFamily: 'monospace', fontSize: '9px', color: customer?.state === 'seated' ? '#ffaa44' : '#cccccc' }).setOrigin(0.5).setDepth(6));
 
 
       if (customer && (customer.state === 'seated' || customer.state === 'ordered')) {
@@ -1085,13 +1202,19 @@ export class GameScene extends Phaser.Scene {
 
       const customer = seat.customerId ? this.seatedCustomers.get(seat.customerId) : null;
       if (customer) {
-        const partyLabel = `Party of ${customer.partySize}`;
-        g.add(this.add.text(bx + 6, bby + 22, partyLabel, { fontFamily: 'monospace', fontSize: '11px', color: '#ffcc88' }).setDepth(6));
+        g.add(this.add.text(bx + 6, bby + 22, `Party of ${customer.partySize}`, { fontFamily: 'monospace', fontSize: '11px', color: '#ffcc88' }).setDepth(6));
         const patFrac = Math.max(0, customer.patience / RUSH.seatPatienceSec);
         const patColor = patFrac > 0.5 ? 0x44aa44 : patFrac > 0.25 ? 0xffaa22 : 0xff3333;
         g.add(this.add.rectangle(bx, bby + boothH - 8, boothW * patFrac, 6, patColor).setOrigin(0, 0).setDepth(7));
-        g.add(this.add.text(bx + 6, bby + 38, `State: ${customer.state}`, { fontFamily: 'monospace', fontSize: '10px', color: '#888888' }).setDepth(6));
-        if (customer.order?.qualityScore !== null && customer.order?.status === 'crafting') {
+        const custStateLabel = customer.state === 'seated' ? 'Waiting to order'
+          : customer.state === 'food_ready' ? 'Food on the way!'
+          : customer.state === 'ordered' ? 'Order placed' : customer.state;
+        const custStateColor = customer.state === 'seated' ? '#ffaa44'
+          : customer.state === 'food_ready' ? '#44ff88' : '#888888';
+        g.add(this.add.text(bx + 6, bby + 38, custStateLabel, { fontFamily: 'monospace', fontSize: '10px', color: custStateColor }).setDepth(6));
+        if (customer.state === 'seated') {
+          g.add(this.add.text(bx + 6, bby + 52, '← Tap to take order', { fontFamily: 'monospace', fontSize: '9px', color: '#ffaa44' }).setDepth(6));
+        } else if (customer.order?.status === 'crafting') {
           g.add(this.add.text(bx + 6, bby + 52, 'Kitchen working...', { fontFamily: 'monospace', fontSize: '10px', color: '#ffdd44' }).setDepth(6));
         }
       } else if (seat.status === 'empty') {
